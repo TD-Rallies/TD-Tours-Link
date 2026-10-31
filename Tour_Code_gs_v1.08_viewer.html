@@ -1,0 +1,1555 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>TD Tours Code.gs v1.08</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f3f4f6}header{padding:10px 14px;font-weight:600;font-size:14px;border-bottom:1px solid #d1d5db;user-select:none}.hint{margin:10px 12px 0;padding:10px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;color:#374151;font-size:13px;font-weight:500;user-select:none}.container{padding:12px}pre{background:#fff;border:1px solid #d1d5db;border-radius:8px;padding:14px;overflow:auto;white-space:pre;font-family:Consolas,"Courier New",monospace;font-size:12px;line-height:1.35;user-select:text;outline:none}</style></head><body><header>TD Tours Code.gs v1.08</header><div class="hint">Click in the code area, press <b>Ctrl+A</b>, then <b>Ctrl+C</b> to copy into Apps Script.</div><div class="container"><pre id="code" tabindex="0">/**
+ * TD Tours – Code.gs v1.08
+ *
+ * Focused Tour backend forked from Rally Controls Code.gs v3.21.
+ * Retained responsibilities only:
+ *   - Tour project Drive/Spreadsheet storage
+ *   - Entrant Google Form + response sheet
+ *   - Admin entry upload/download/status
+ *   - Tracking event config, live/bulk submit, confirmation, read/replay and housekeeping
+ *   - Explicit Tour date-array gate for tracking submissions
+ *
+ * v1.08:
+ *   - Accept Traccar Device identifiers with or without a space between Tour number and surname.
+ *
+ * v1.07:
+ *   - Finalize Traccar event routing contract.
+ *   - Event ID is supplied dynamically with each Tour-specific Traccar Server URL;
+ *     it is not fixed in the Cloudflare Worker.
+ *   - Cloudflare remains a generic relay and forwards the incoming eventId + tracking key.
+ *   - Supports simultaneous Tours safely: eventId selects the Tour, Device identifier
+ *     selects the entrant within that Tour.
+ *   - Existing Tour date gate continues to reject stale/old Tour tracking reports.
+ *
+ * v1.06:
+ *   - Add Traccar Client tracking as a second input path alongside TD PWA / TD Android.
+ *   - Traccar Device identifier protocol: &quot;TourNo Surname&quot; (for example &quot;87 Smith&quot;).
+ *   - Traccar reports are normalized into the existing Tracking sheet contract.
+ *   - Traccar requires eventId + tracking key to be added by the Cloudflare relay.
+ *   - Existing TD tracking submit / confirm / bulk paths remain unchanged.
+ *
+ * v1.05:
+ *   - Tour trackingRead treats an explicit trackingDate/eventDate request as replay-history mode.
+ *   - Replay-history mode returns the retained 7 tracking-day window for the Event ID instead of one day only.
+ *   - Live tracking requests without a date remain restricted to the current 03:00–02:59 tracking day.
+ *
+ * v1.04:
+ *   - Tour entrant tracking submissions no longer require Rally-era Day or Route fields.
+ *   - Event ID, Tour No, GPS coordinates and GPS time remain required.
+ *   - Existing Tour date-array gating remains unchanged.
+ *
+ * v1.03:
+ *   - Restore proven TD Rallies-style auto-park for the standalone Apps Script project.
+ *   - On first real uploadEntries action, rename a generic script project and move it into the TD Tours root folder.
+ *   - No-op safely for bound scripts or Drive-permission failures.
+ *
+ * v1.02:
+ *   - Fix Google Form on-submit entrant transfer.
+ *   - Form-bound triggers now read e.response.getItemResponses() and map answers by question title.
+ *   - Existing Admin - Entries worksheet structure and download contract are unchanged.
+ *
+ * v1.01:
+ *   - Remove Tour No from the Google/Admin Entries worksheet.
+ *   - Tour No remains an Admin-page slot identity assigned from row order after download.
+ *   - Existing Admin - Entries sheets with a legacy Tour No/Rally No ninth column are migrated cleanly.
+ *
+ * Compatibility:
+ *   Existing front-end API mode names are retained where useful (uploadEntries,
+ *   downloadEntries, adminStatus and tracking* modes) so the Tour pages can be
+ *   migrated without changing transport contracts all at once.
+ */
+
+const TOUR_CODE_VERSION = &#x27;v1.08&#x27;;
+const TOUR_ROOT_FOLDER_NAME = &#x27;TD Tours&#x27;;
+const TOUR_PROP_PREFIX = &#x27;td_tour_&#x27;;
+const TOUR_MASTER_SCRIPT_NAME = &#x27;TD Tours – Code.gs&#x27;;
+const RALLY_TRACKING_KEY = &#x27;RALLY-TRACKING&#x27;; // transport compatibility; may be renamed after all Tour apps are migrated
+const RALLY_TRACKING_EVENTS_SHEET = &#x27;Tracking Events&#x27;;
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+function getProps_(){ return PropertiesService.getScriptProperties(); }
+function rcRetry_(label, fn, attempts, delayMs){ attempts=attempts||4; delayMs=delayMs||700; var last=null; for(var i=0;i&lt;attempts;i++){ try{return fn();}catch(e){last=e; try{Utilities.sleep(delayMs*(i+1));}catch(_){}} } throw last; }
+function rcDriveGetFileById_(id){ return rcRetry_(&#x27;DriveApp.getFileById&#x27;,function(){return DriveApp.getFileById(id);}); }
+function rcDriveGetFolderById_(id){ return rcRetry_(&#x27;DriveApp.getFolderById&#x27;,function(){return DriveApp.getFolderById(id);}); }
+function rcFolderAddFile_(folder,file){ return rcRetry_(&#x27;Folder.addFile&#x27;,function(){return folder.addFile(file);}); }
+function rcSpreadsheetCreate_(name){ return rcRetry_(&#x27;SpreadsheetApp.create&#x27;,function(){return SpreadsheetApp.create(name);}); }
+function rcFormCreate_(name){ return rcRetry_(&#x27;FormApp.create&#x27;,function(){return FormApp.create(name);}); }
+function normalizeRallyName_(name){ return String(name||&#x27;&#x27;).trim(); }
+function isValidRallyName_(name){ var s=normalizeRallyName_(name); return !!s &amp;&amp; s.length&lt;=80; }
+function slugRallyName_(name){ var s=String(name||&#x27;tour&#x27;).toLowerCase().replace(/[^a-z0-9]+/g,&#x27;_&#x27;).replace(/^_+|_+$/g,&#x27;&#x27;); return s||&#x27;tour&#x27;; }
+function nameVariants_(s){ var out={}; function add(v){if(v)out[String(v)]=true;} add(s); add(String(s||&#x27;&#x27;).split(&#x27; – &#x27;).join(&#x27; - &#x27;)); add(String(s||&#x27;&#x27;).split(&#x27; - &#x27;).join(&#x27; – &#x27;)); return Object.keys(out); }
+function firstFileByNameVariants_(folder,names){ if(!folder)return null; for(var i=0;i&lt;names.length;i++){var it=folder.getFilesByName(names[i]); if(it.hasNext())return it.next();} return null; }
+function moveFileToFolder_(file,folder){ if(!file||!folder)return; try{rcFolderAddFile_(folder,file);}catch(_){} try{var root=DriveApp.getRootFolder(); var ps=file.getParents(); while(ps.hasNext()){var p=ps.next(); if(p.getId()===root.getId())try{root.removeFile(file);}catch(_){}}}catch(_){} }
+
+function ensureBaseFolder_(){
+  var props=getProps_(), key=TOUR_PROP_PREFIX+&#x27;rootFolderId&#x27;, id=props.getProperty(key), folder=null;
+  if(id){try{folder=rcDriveGetFolderById_(id);}catch(_){folder=null;}}
+  if(!folder){var it=DriveApp.getFoldersByName(TOUR_ROOT_FOLDER_NAME); folder=it.hasNext()?it.next():DriveApp.createFolder(TOUR_ROOT_FOLDER_NAME); props.setProperty(key,folder.getId());}
+  return folder;
+}
+function findBaseFolderReadOnly_(){ var id=getProps_().getProperty(TOUR_PROP_PREFIX+&#x27;rootFolderId&#x27;); if(id){try{return DriveApp.getFolderById(id);}catch(_){}} var it=DriveApp.getFoldersByName(TOUR_ROOT_FOLDER_NAME); return it.hasNext()?it.next():null; }
+
+function autoParkMasterScriptOnce_(){
+  var props=getProps_(), parkedKey=TOUR_PROP_PREFIX+&#x27;masterScriptParked&#x27;;
+  if(props.getProperty(parkedKey)===&#x27;1&#x27;)return;
+
+  var scriptId=&#x27;&#x27;;
+  try{scriptId=ScriptApp.getScriptId();}catch(_){return;}
+
+  var file=null;
+  try{file=DriveApp.getFileById(scriptId);}catch(_){return;} // bound script or Drive scope unavailable
+
+  var rootFolder=ensureBaseFolder_();
+
+  try{
+    var currentName=String(file.getName()||&#x27;&#x27;);
+    if(/^Untitled project$/i.test(currentName) || /^Untitled$/i.test(currentName) || !currentName.trim()){
+      file.setName(TOUR_MASTER_SCRIPT_NAME);
+    }
+  }catch(_){}
+
+  try{rootFolder.addFile(file);}catch(_){}
+
+  try{
+    var root=DriveApp.getRootFolder(), parents=file.getParents();
+    while(parents.hasNext()){
+      var p=parents.next();
+      if(p.getId &amp;&amp; p.getId()===root.getId()){
+        root.removeFile(file);
+        break;
+      }
+    }
+  }catch(_){}
+
+  try{props.setProperty(parkedKey,&#x27;1&#x27;);}catch(_){}
+}
+
+function ensureRallyStorage_(tourName){
+  var name=normalizeRallyName_(tourName)||&#x27;Tour&#x27;, slug=slugRallyName_(name), props=getProps_(), root=ensureBaseFolder_();
+  var folderIdKey=TOUR_PROP_PREFIX+&#x27;tourFolderId_&#x27;+slug, folderId=props.getProperty(folderIdKey), folder=null;
+  if(folderId){try{folder=rcDriveGetFolderById_(folderId);}catch(_){}}
+  if(!folder){var folderName=&#x27;Tour – &#x27;+name, it=root.getFoldersByName(folderName); folder=it.hasNext()?it.next():root.createFolder(folderName); props.setProperty(folderIdKey,folder.getId());}
+  var ssIdKey=TOUR_PROP_PREFIX+&#x27;spreadsheetId_&#x27;+slug, ssId=props.getProperty(ssIdKey), ss=null, ssName=&#x27;TD Tour – &#x27;+name;
+  if(ssId){try{ss=SpreadsheetApp.openById(ssId);}catch(_){ss=null;}}
+  if(!ss){var fit=folder.getFilesByName(ssName); if(fit.hasNext())ss=SpreadsheetApp.openById(fit.next().getId()); else{ss=rcSpreadsheetCreate_(ssName); moveFileToFolder_(rcDriveGetFileById_(ss.getId()),folder);} props.setProperty(ssIdKey,ss.getId());}
+  var errors=ss.getSheetByName(&#x27;Errors&#x27;); if(!errors){errors=ss.insertSheet(&#x27;Errors&#x27;); errors.appendRow([&#x27;Timestamp&#x27;,&#x27;Where&#x27;,&#x27;Message&#x27;,&#x27;Context JSON&#x27;]);}
+  var events=ss.getSheetByName(RALLY_TRACKING_EVENTS_SHEET); if(!events)events=ss.insertSheet(RALLY_TRACKING_EVENTS_SHEET);
+  return {rallyName:name,baseFolder:root,rallyFolder:folder,spreadsheet:ss,errorsSheet:errors,eventsSheet:events};
+}
+function findRallySpreadsheet_(tourName){
+  var name=normalizeRallyName_(tourName); if(!name)return null; var slug=slugRallyName_(name), id=getProps_().getProperty(TOUR_PROP_PREFIX+&#x27;spreadsheetId_&#x27;+slug); if(id){try{return SpreadsheetApp.openById(id);}catch(_){}}
+  var root=findBaseFolderReadOnly_(); if(!root)return null; var it=root.getFoldersByName(&#x27;Tour – &#x27;+name); if(!it.hasNext())return null; var f=it.next().getFilesByName(&#x27;TD Tour – &#x27;+name); return f.hasNext()?SpreadsheetApp.openById(f.next().getId()):null;
+}
+function logError_(tourName,where,err,ctx){ try{var st=ensureRallyStorage_(tourName||&#x27;Tour&#x27;); st.errorsSheet.appendRow([new Date(),String(where||&#x27;&#x27;),String(err&amp;&amp;err.message?err.message:err),JSON.stringify(ctx||{})]);}catch(_){} }
+function sheetUrl_(ss,sheet){ return ss.getUrl()+&#x27;#gid=&#x27;+sheet.getSheetId(); }
+
+const FORMTAG_PREFIX=&#x27;TOUR_FORMTAG_&#x27;;
+function setFormTag_(id,obj){if(id)try{getProps_().setProperty(FORMTAG_PREFIX+id,JSON.stringify(obj||{}));}catch(_){}}
+function getFormTag_(id){try{var s=getProps_().getProperty(FORMTAG_PREFIX+id);return s?JSON.parse(s):null;}catch(_){return null;}}
+function tagForm_(form,kind,tourName,folderId){ if(form&amp;&amp;form.getId)setFormTag_(form.getId(),{kind:String(kind||&#x27;&#x27;),tourName:String(tourName||&#x27;&#x27;),rallyName:String(tourName||&#x27;&#x27;),rallyFolderId:String(folderId||&#x27;&#x27;),taggedAt:new Date().toISOString()}); }
+
+function findOrCreateFormInFolder_(folder,name){ var f=firstFileByNameVariants_(folder,nameVariants_(name)); if(f){try{return FormApp.openById(f.getId());}catch(_){}} var form=rcFormCreate_(name); moveFileToFolder_(rcDriveGetFileById_(form.getId()),folder); return form; }
+function ensureEntriesResponsesSpreadsheet_(tourName,folder){ var name=tourName||&#x27;Tour&#x27;, key=TOUR_PROP_PREFIX+&#x27;entriesResponsesId_&#x27;+slugRallyName_(name), props=getProps_(), id=props.getProperty(key), ss=null; if(id){try{ss=SpreadsheetApp.openById(id);}catch(_){}} if(!ss){var base=&#x27;Entries Responses – &#x27;+name, f=firstFileByNameVariants_(folder,nameVariants_(base)); if(f)ss=SpreadsheetApp.openById(f.getId()); else{ss=rcSpreadsheetCreate_(base); moveFileToFolder_(rcDriveGetFileById_(ss.getId()),folder);} props.setProperty(key,ss.getId());} return ss; }
+function ensureEntrySubmitTrigger_(form){ var id=form.getId(), handlers=ScriptApp.getProjectTriggers(); for(var i=0;i&lt;handlers.length;i++){var t=handlers[i]; try{if(t.getHandlerFunction()===&#x27;handleEntrySubmit_&#x27; &amp;&amp; t.getTriggerSourceId()===id)return;}catch(_){}} ScriptApp.newTrigger(&#x27;handleEntrySubmit_&#x27;).forForm(form).onFormSubmit().create(); }
+function entryHeaders_(){ return [&#x27;Driver first name&#x27;,&#x27;Driver surname&#x27;,&#x27;Navigator first name&#x27;,&#x27;Navigator surname&#x27;,&#x27;Driver mobile number&#x27;,&#x27;Driver email&#x27;,&#x27;Car make/model&#x27;,&#x27;Car year&#x27;]; }
+function ensureEntriesSheet_(ss){
+  var sh=ss.getSheetByName(&#x27;Admin - Entries&#x27;);
+  if(!sh)sh=ss.insertSheet(&#x27;Admin - Entries&#x27;);
+  // v1.01 migration: Tour No is an Admin-page slot identity, not Google entry data.
+  // Remove the old ninth worksheet column only when its header is the known legacy identity field.
+  if(sh.getLastColumn()&gt;=9 &amp;&amp; sh.getLastRow()&gt;=1){
+    try{
+      var legacy=String(sh.getRange(1,9).getDisplayValue()||&#x27;&#x27;).trim();
+      if(legacy===&#x27;Tour No&#x27; || legacy===&#x27;Rally No&#x27;)sh.deleteColumn(9);
+    }catch(_){}
+  }
+  if(sh.getLastRow()&lt;1)sh.getRange(1,1,1,entryHeaders_().length).setValues([entryHeaders_()]);
+  else sh.getRange(1,1,1,entryHeaders_().length).setValues([entryHeaders_()]);
+  try{sh.getRange(&#x27;E:E&#x27;).setNumberFormat(&#x27;@&#x27;);}catch(_){}
+  return sh;
+}
+
+function uploadEntries_(opts){
+  opts=opts||{}; var payload=opts.data&amp;&amp;typeof opts.data===&#x27;object&#x27;?opts.data:opts; var name=normalizeRallyName_(payload.tourTitle||payload.rallyTitle||payload.rallyName||opts.rallyName); if(!isValidRallyName_(name))throw new Error(&#x27;Invalid tourTitle&#x27;);
+  try{autoParkMasterScriptOnce_();}catch(_){}
+  var st=ensureRallyStorage_(name), sh=ensureEntriesSheet_(st.spreadsheet), form=findOrCreateFormInFolder_(st.rallyFolder,&#x27;Entries – &#x27;+name);
+  form.setTitle(String(payload.entryFormHeaderText||payload.entryFormTitle||name).trim()||name); form.setDescription(&#x27;TD Tours entry form\nTD_TOUR=&#x27;+name); tagForm_(form,&#x27;entries&#x27;,name,st.rallyFolder.getId()); try{getProps_().setProperty(TOUR_PROP_PREFIX+&#x27;entriesFormId_&#x27;+slugRallyName_(name),form.getId());}catch(_){}
+  var items=form.getItems(); if(!items||!items.length){ [&#x27;Driver first name&#x27;,&#x27;Driver surname&#x27;,&#x27;Navigator first name&#x27;,&#x27;Navigator surname&#x27;,&#x27;Driver mobile number&#x27;,&#x27;Driver email&#x27;,&#x27;Car make/model&#x27;,&#x27;Car year&#x27;].forEach(function(t){form.addTextItem().setTitle(t).setRequired(true);}); }
+  var resp=ensureEntriesResponsesSpreadsheet_(name,st.rallyFolder); var dest=&#x27;&#x27;; try{dest=form.getDestinationId?form.getDestinationId():&#x27;&#x27;;}catch(_){} if(!dest)form.setDestination(FormApp.DestinationType.SPREADSHEET,resp.getId()); ensureEntrySubmitTrigger_(form);
+  return {ok:true,mode:&#x27;uploadEntries&#x27;,rallyName:name,tourTitle:name,spreadsheetUrl:st.spreadsheet.getUrl(),entriesSheetUrl:sheetUrl_(st.spreadsheet,sh),responsesSheetUrl:resp.getUrl(),entrantFormUrl:form.getPublishedUrl()};
+}
+function handleEntrySubmit_(e){
+  var tag=null;
+  try{
+    var form=e&amp;&amp;e.source, name=&#x27;&#x27;;
+    tag=form?getFormTag_(form.getId()):null;
+    name=tag&amp;&amp;(tag.tourName||tag.rallyName);
+    if(!name)throw new Error(&#x27;Tour form tag missing&#x27;);
+
+    var st=ensureRallyStorage_(name), sh=ensureEntriesSheet_(st.spreadsheet), answers={};
+    var response=e&amp;&amp;e.response;
+    if(!response || typeof response.getItemResponses!==&#x27;function&#x27;)throw new Error(&#x27;Google Form response missing&#x27;);
+
+    var itemResponses=response.getItemResponses()||[];
+    itemResponses.forEach(function(ir){
+      try{
+        var item=ir&amp;&amp;ir.getItem?ir.getItem():null;
+        var title=item&amp;&amp;item.getTitle?String(item.getTitle()||&#x27;&#x27;).trim():&#x27;&#x27;;
+        if(!title)return;
+        var value=ir&amp;&amp;ir.getResponse?ir.getResponse():&#x27;&#x27;;
+        if(Array.isArray(value))value=value.join(&#x27;, &#x27;);
+        answers[title]=String(value==null?&#x27;&#x27;:value);
+      }catch(_){}
+    });
+
+    function v(k){ return String(answers[k]||&#x27;&#x27;); }
+    var row=[
+      v(&#x27;Driver first name&#x27;),
+      v(&#x27;Driver surname&#x27;),
+      v(&#x27;Navigator first name&#x27;),
+      v(&#x27;Navigator surname&#x27;),
+      v(&#x27;Driver mobile number&#x27;),
+      v(&#x27;Driver email&#x27;),
+      v(&#x27;Car make/model&#x27;),
+      v(&#x27;Car year&#x27;)
+    ];
+    sh.appendRow(row);
+  }catch(err){
+    logError_((tag&amp;&amp;(tag.tourName||tag.rallyName))||&#x27;Tour&#x27;,&#x27;handleEntrySubmit_&#x27;,err,{});
+  }
+}
+function downloadEntries_(tourName){ var ss=findRallySpreadsheet_(tourName); if(!ss)return {ok:true,rallyName:tourName,entries:[]}; var sh=ss.getSheetByName(&#x27;Admin - Entries&#x27;); if(!sh||sh.getLastRow()&lt;2)return {ok:true,rallyName:tourName,entries:[]}; ensureEntriesSheet_(ss); var vals=sh.getRange(2,1,sh.getLastRow()-1,entryHeaders_().length).getDisplayValues(); return {ok:true,rallyName:tourName,entries:vals.map(function(r){return {driverFirst:r[0],driverSurname:r[1],navigatorFirst:r[2],navigatorSurname:r[3],driverMobile:r[4],driverEmail:r[5],carMakeModel:r[6],carYear:r[7]};})}; }
+function adminStatus_(tourName){ var ss=findRallySpreadsheet_(tourName); if(!ss)return {ok:true,rallyName:tourName,spreadsheetUrl:&#x27;&#x27;,entriesSheetUrl:&#x27;&#x27;,responsesSheetUrl:&#x27;&#x27;,entryFormUrl:&#x27;&#x27;,trackingSheetUrl:&#x27;&#x27;,hasAdminEntries:false,hasAdminEntriesRows:false}; var sh=ss.getSheetByName(&#x27;Admin - Entries&#x27;), tracking=ss.getSheetByName(&#x27;Tracking&#x27;); var slug=slugRallyName_(tourName), props=getProps_(), formId=props.getProperty(TOUR_PROP_PREFIX+&#x27;entriesFormId_&#x27;+slug)||&#x27;&#x27;; var formUrl=&#x27;&#x27;; if(formId)try{formUrl=FormApp.openById(formId).getPublishedUrl();}catch(_){} if(!formUrl){var root=findBaseFolderReadOnly_(); if(root){var fit=root.getFoldersByName(&#x27;Tour – &#x27;+tourName); if(fit.hasNext()){var ff=fit.next().getFilesByName(&#x27;Entries – &#x27;+tourName); if(ff.hasNext())try{formUrl=FormApp.openById(ff.next().getId()).getPublishedUrl();}catch(_){}}}} var respId=props.getProperty(TOUR_PROP_PREFIX+&#x27;entriesResponsesId_&#x27;+slug)||&#x27;&#x27;, respUrl=&#x27;&#x27;; if(respId)try{respUrl=SpreadsheetApp.openById(respId).getUrl();}catch(_){} return {ok:true,rallyName:tourName,tourTitle:tourName,spreadsheetUrl:ss.getUrl(),entriesSheetUrl:sh?sheetUrl_(ss,sh):&#x27;&#x27;,responsesSheetUrl:respUrl,entryFormUrl:formUrl,trackingSheetUrl:tracking?sheetUrl_(ss,tracking):&#x27;&#x27;,hasAdminEntries:!!sh,hasAdminEntriesRows:!!(sh&amp;&amp;sh.getLastRow()&gt;1),hasTrackingData:!!(tracking&amp;&amp;tracking.getLastRow()&gt;1)}; }
+
+function tourNormalizeDateArray_(value){ var a=Array.isArray(value)?value:(typeof value===&#x27;string&#x27;?value.split(/[;,\s]+/):[]), out={}; a.forEach(function(v){var s=String(v||&#x27;&#x27;).trim(),m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s); if(m)out[s]=true;}); return Object.keys(out).sort(); }
+function tourEventDates_(eventId){ var storage=rallyTrackingEnsureStorage_(&#x27;&#x27;,eventId), vals=storage.eventsSheet.getDataRange().getValues(); for(var i=vals.length-1;i&gt;=1;i--){if(String(vals[i][0]||&#x27;&#x27;)===String(eventId||&#x27;&#x27;))return tourNormalizeDateArray_(rallyTrackingSvcParseJson_(vals[i][9],[]));} return []; }
+function tourDateFromGpsTime_(gpsTime){ var d=new Date(gpsTime); if(isNaN(d.getTime()))throw new Error(&#x27;Invalid gpsTime&#x27;); var tz=RALLY_TRACKING_TRACKING_TIME_ZONE||Session.getScriptTimeZone(); return Utilities.formatDate(d,tz,&#x27;yyyy-MM-dd&#x27;); }
+function tourAssertTrackingDateAllowed_(eventId,gpsTime){ var dates=tourEventDates_(eventId); if(!dates.length)throw new Error(&#x27;Tour dates are not configured for this tracking event&#x27;); var date=tourDateFromGpsTime_(gpsTime); if(dates.indexOf(date)===-1)throw new Error(&#x27;Tracking is closed for &#x27;+date); return date; }
+
+function doGet(e){
+  var mode=String(e&amp;&amp;e.parameter&amp;&amp;e.parameter.mode||&#x27;ping&#x27;);
+  if(rallyTrackingIsServiceMode_(mode) || rallyTrackingLooksLikeTraccar_(e&amp;&amp;e.parameter?e.parameter:{}))return rallyTrackingWebGet_(e);
+  try{
+    if(mode===&#x27;ping&#x27;)return json_({ok:true,mode:&#x27;ping&#x27;,version:TOUR_CODE_VERSION,message:&#x27;TD Tours script is alive (&#x27;+TOUR_CODE_VERSION+&#x27;)&#x27;});
+    var p=e&amp;&amp;e.parameter?e.parameter:{}, name=normalizeRallyName_(p.tourTitle||p.rallyName||p.rally||&#x27;&#x27;);
+    if(mode===&#x27;uploadEntries&#x27;){var data={}; try{data=JSON.parse(p.data||&#x27;{}&#x27;);}catch(_){} return json_(uploadEntries_({rallyName:name,data:data}));}
+    if(mode===&#x27;downloadEntries&#x27;)return json_(downloadEntries_(name));
+    if(mode===&#x27;adminStatus&#x27;)return json_(adminStatus_(name));
+    return json_({ok:false,error:&#x27;Unknown mode: &#x27;+mode});
+  }catch(err){return json_({ok:false,error:String(err&amp;&amp;err.message?err.message:err)});}
+}
+function doPost(e){ return rallyTrackingHandleRequest_(e); }
+function rallyTrackingIsServiceMode_(mode){ return [&#x27;trackingSetup&#x27;,&#x27;trackingEventUpload&#x27;,&#x27;trackingEventRead&#x27;,&#x27;trackingStatus&#x27;,&#x27;trackingSubmit&#x27;,&#x27;liveSubmit&#x27;,&#x27;traccarSubmit&#x27;,&#x27;trackConfirm&#x27;,&#x27;bulkSubmit&#x27;,&#x27;bulkConfirm&#x27;,&#x27;trackingConfirm&#x27;,&#x27;trackingRead&#x27;,&#x27;trackingHousekeeping&#x27;].indexOf(String(mode||&#x27;&#x27;))!==-1; }
+function rallyTrackingWebGet_(e){ var output=rallyTrackingHandleRequest_(e),p=e&amp;&amp;e.parameter?e.parameter:{},cb=String(p.callback||&#x27;&#x27;).trim(); if(cb){if(!/^[A-Za-z_$][0-9A-Za-z_$]*$/.test(cb))return rallyTrackingJson_({ok:false,error:&#x27;Invalid callback&#x27;}); return ContentService.createTextOutput(cb+&#x27;(&#x27;+output.getContent()+&#x27;);&#x27;).setMimeType(ContentService.MimeType.JAVASCRIPT);} return output; }
+
+// ============================================================================
+
+const RALLY_TRACKING_TRACKING_VERSION = &#x27;TOUR-v1.08&#x27;;
+const RALLY_TRACKING_TRACKING_SHEET = &#x27;Tracking&#x27;;
+const RALLY_TRACKING_ERRORS_SHEET = &#x27;Errors&#x27;;
+const RALLY_TRACKING_PROP_PREFIX = &#x27;tourTracking_tracking_&#x27;;
+const RALLY_TRACKING_LIVE_RECEIPT_CACHE_PREFIX = &#x27;liveReceipt:&#x27;;
+const RALLY_TRACKING_LIVE_RECEIPT_CACHE_SECONDS = 21600; // 6 hours; recent-confirm fast path only
+const RALLY_TRACKING_PACKET_RECEIPT_PREFIX = RALLY_TRACKING_PROP_PREFIX + &#x27;trackReceipt_&#x27;;
+const RALLY_TRACKING_BULK_RECEIPT_PREFIX = RALLY_TRACKING_PROP_PREFIX + &#x27;bulkReceipt_&#x27;;
+const RALLY_TRACKING_STREAMLINED_RECEIPT_HOURS = 24;
+
+// Tracking day: 03:00:00 through 02:59:59 the following morning.
+// Uses the Apps Script project timezone unless overridden here.
+const RALLY_TRACKING_TRACKING_DAY_START_HOUR = 3;
+const RALLY_TRACKING_TRACKING_TIME_ZONE = &#x27;&#x27;; // e.g. &#x27;Africa/Johannesburg&#x27;; blank = project timezone
+
+// Keep the current tracking day plus the previous 6 tracking days.
+const RALLY_TRACKING_KEEP_TRACKING_DAYS = 7;
+const RALLY_TRACKING_LAST_CLEANUP_PROP = RALLY_TRACKING_PROP_PREFIX + &#x27;lastCleanupTrackingDay&#x27;;
+
+// Change this before field testing. The same value must be sent by the simulator/sender.
+const RALLY_TRACKING_EVENT_HEADERS = [&#x27;Event ID&#x27;,&#x27;Uploaded Time&#x27;,&#x27;Page Header&#x27;,&#x27;Tour Title&#x27;,&#x27;Day&#x27;,&#x27;Route&#x27;,&#x27;Entrant Count&#x27;,&#x27;Entrants JSON&#x27;,&#x27;Route JSON&#x27;,&#x27;Tour Dates JSON&#x27;];
+
+const RALLY_TRACKING_TRACKING_HEADERS = [
+  &#x27;Received Time&#x27;,
+  &#x27;GPS Time&#x27;,
+  &#x27;Event ID&#x27;,
+  &#x27;Tour Title&#x27;,
+  &#x27;Day&#x27;,
+  &#x27;Route&#x27;,
+  &#x27;Rally No&#x27;,
+  &#x27;Driver Name&#x27;,
+  &#x27;Latitude&#x27;,
+  &#x27;Longitude&#x27;,
+  &#x27;Accuracy m&#x27;,
+  &#x27;Speed km/h&#x27;,
+  &#x27;Sender ID&#x27;,
+  &#x27;Sequence&#x27;,
+  &#x27;Report Key&#x27;
+];
+
+function rallyTrackingHandleRequest_(e) {
+  try {
+    const p = (e &amp;&amp; e.parameter) ? e.parameter : {};
+    // v0.24: streamlined live/bulk senders POST raw JSON. Apps Script does not
+    // populate e.parameter.mode for that body, so read the payload before routing.
+    // GET/query traffic remains unchanged because rallyTrackingReadPayload_ falls
+    // back to e.parameter when there is no JSON body.
+    const requestPayload = rallyTrackingReadPayload_(e);
+    const mode = String(requestPayload.mode || p.mode || &#x27;ping&#x27;);
+
+    // v1.07: Traccar Client uses the OsmAnd-style HTTP parameter contract rather
+    // than the TD Tour JSON transport. The Tour-specific Traccar Server URL carries
+    // eventId; the generic Cloudflare relay forwards that eventId and adds the key.
+    // Detect this before the default ping path, normalize it, then feed it into
+    // the same proven Tour tracking submit/storage/date-gate path.
+    if (mode === &#x27;traccarSubmit&#x27; || rallyTrackingLooksLikeTraccar_(requestPayload)) {
+      rallyTrackingRequireKey_(requestPayload.key || p.key);
+      return rallyTrackingJson_(Object.assign(
+        { ok: true, mode: &#x27;traccarSubmit&#x27; },
+        rallyTrackingTraccarSubmit_(requestPayload)
+      ));
+    }
+
+    if (mode === &#x27;ping&#x27;) {
+      return rallyTrackingJson_({
+        ok: true,
+        mode: &#x27;ping&#x27;,
+        service: &#x27;TD Tour Tracking&#x27;,
+        version: RALLY_TRACKING_TRACKING_VERSION
+      });
+    }
+
+    if (mode === &#x27;trackingSetup&#x27;) {
+      rallyTrackingRequireKey_(requestPayload.key || p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackingSetup_()));
+    }
+
+    if (mode === &#x27;trackingEventUpload&#x27;) {
+      const payload = requestPayload;
+      rallyTrackingRequireKey_(payload.key || p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackingEventUpload_(payload)));
+    }
+
+    if (mode === &#x27;trackingEventRead&#x27;) {
+      rallyTrackingRequireKey_(p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackingEventRead_(p)));
+    }
+
+    if (mode === &#x27;trackingStatus&#x27;) {
+      rallyTrackingRequireKey_(p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackingStatus_(p)));
+    }
+
+    if (mode === &#x27;trackingSubmit&#x27; || mode === &#x27;liveSubmit&#x27;) {
+      const payload = requestPayload;
+      rallyTrackingRequireKey_(payload.key || p.key);
+      const trackPayload = payload.track &amp;&amp; typeof payload.track === &#x27;object&#x27; ? payload.track : payload;
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackingSubmit_(trackPayload)));
+    }
+
+    if (mode === &#x27;trackConfirm&#x27;) {
+      rallyTrackingRequireKey_(p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackConfirm_(p)));
+    }
+
+    if (mode === &#x27;bulkSubmit&#x27;) {
+      const payload = requestPayload;
+      rallyTrackingRequireKey_(payload.key || p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingBulkSubmit_(payload)));
+    }
+
+    if (mode === &#x27;bulkConfirm&#x27;) {
+      rallyTrackingRequireKey_(p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingBulkConfirm_(p)));
+    }
+
+    if (mode === &#x27;trackingConfirm&#x27;) {
+      rallyTrackingRequireKey_(p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackingConfirm_(p)));
+    }
+
+    if (mode === &#x27;trackingRead&#x27;) {
+      rallyTrackingRequireKey_(p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackingRead_(p)));
+    }
+
+    if (mode === &#x27;trackingHousekeeping&#x27;) {
+      rallyTrackingRequireKey_(p.key);
+      return rallyTrackingJson_(Object.assign({ ok: true, mode: mode }, rallyTrackingTrackingHousekeeping_()));
+    }
+
+    return rallyTrackingJson_({ ok: false, error: &#x27;Unknown mode: &#x27; + mode });
+  } catch (err) {
+    rallyTrackingLogError_(&#x27;rallyTrackingHandleRequest_&#x27;, err, { parameters: e &amp;&amp; e.parameter ? e.parameter : {} });
+    return rallyTrackingJson_({ ok: false, error: String(err &amp;&amp; err.message ? err.message : err) });
+  }
+}
+
+function rallyTrackingReadPayload_(e) {
+  const p = (e &amp;&amp; e.parameter) ? e.parameter : {};
+  let raw = p.data || &#x27;&#x27;;
+
+  if (!raw &amp;&amp; e &amp;&amp; e.postData &amp;&amp; e.postData.contents) {
+    raw = e.postData.contents;
+  }
+
+  if (!raw) return Object.assign({}, p);
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Object.assign({}, p, parsed || {});
+  } catch (err) {
+    // v1.06: Traccar may POST standard form/query parameters rather than JSON.
+    // In that case Apps Script has already populated e.parameter, so preserve it.
+    if (rallyTrackingLooksLikeTraccar_(p)) return Object.assign({}, p);
+    throw new Error(&#x27;Invalid tracking payload JSON&#x27;);
+  }
+}
+
+function rallyTrackingLooksLikeTraccar_(p) {
+  p = p || {};
+  const deviceId = String(p.id || p.deviceid || &#x27;&#x27;).trim();
+  const hasLat = p.lat !== undefined &amp;&amp; p.lat !== null &amp;&amp; String(p.lat).trim() !== &#x27;&#x27;;
+  const hasLon = p.lon !== undefined &amp;&amp; p.lon !== null &amp;&amp; String(p.lon).trim() !== &#x27;&#x27;;
+  const hasTime = p.timestamp !== undefined &amp;&amp; p.timestamp !== null &amp;&amp; String(p.timestamp).trim() !== &#x27;&#x27;;
+  return !!deviceId &amp;&amp; hasLat &amp;&amp; hasLon &amp;&amp; hasTime;
+}
+
+function rallyTrackingParseTraccarIdentity_(value) {
+  const raw = String(value || &#x27;&#x27;).trim().replace(/\s+/g, &#x27; &#x27;);
+  const match = /^(\d+)\s*(.+)$/.exec(raw);
+  if (!match) {
+    throw new Error(&#x27;Traccar Device identifier must contain TourNo and Surname, for example &quot;87 Smith&quot; or &quot;87Smith&quot;&#x27;);
+  }
+  return {
+    rallyNo: match[1],
+    driverName: String(match[2] || &#x27;&#x27;).trim(),
+    deviceId: raw
+  };
+}
+
+function rallyTrackingTraccarGpsTime_(value) {
+  const raw = String(value == null ? &#x27;&#x27; : value).trim();
+  if (!raw) throw new Error(&#x27;Traccar timestamp is required&#x27;);
+
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) throw new Error(&#x27;Invalid Traccar timestamp&#x27;);
+    // OsmAnd accepts both seconds and milliseconds since epoch.
+    const ms = n &lt; 100000000000 ? n * 1000 : n;
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) throw new Error(&#x27;Invalid Traccar timestamp&#x27;);
+    return d.toISOString();
+  }
+
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) throw new Error(&#x27;Invalid Traccar timestamp&#x27;);
+  return d.toISOString();
+}
+
+function rallyTrackingTraccarSubmit_(p) {
+  p = p || {};
+
+  const eventId = String(p.eventId || p.tourEventId || &#x27;&#x27;).trim();
+  if (!eventId) {
+    throw new Error(&#x27;Traccar eventId is required in the Tour-specific Server URL&#x27;);
+  }
+
+  const identity = rallyTrackingParseTraccarIdentity_(p.id || p.deviceid);
+
+  // eventId is the authoritative Tour selector. This prevents collisions when
+  // two Tours run on the same date and both contain the same entrant number/name.
+  const rallyTitle = rallyTrackingRallyForEvent_(eventId);
+  if (!rallyTitle) {
+    throw new Error(&#x27;Traccar Tour event is not uploaded or could not be resolved: &#x27; + eventId);
+  }
+
+  const gpsTime = rallyTrackingTraccarGpsTime_(p.timestamp);
+  const speedRaw = rallyTrackingOptionalNumber_(p.speed);
+  // OsmAnd protocol speed defaults to knots. Convert to the Tracking sheet&#x27;s km/h.
+  const speedKph = speedRaw === &#x27;&#x27; ? &#x27;&#x27; : Number((Number(speedRaw) * 1.852).toFixed(3));
+
+  // Use GPS timestamp as the Traccar sequence identity. Repeated delivery of the
+  // same device/timestamp therefore produces the same Report Key and is handled
+  // by the existing Tracking dedupe/housekeeping path.
+  const sequence = new Date(gpsTime).getTime();
+
+  return rallyTrackingTrackingSubmit_({
+    eventId: eventId,
+    rallyTitle: rallyTitle,
+    day: &#x27;&#x27;,
+    route: &#x27;&#x27;,
+    rallyNo: identity.rallyNo,
+    driverName: identity.driverName,
+    latitude: p.lat,
+    longitude: p.lon,
+    accuracy: p.accuracy,
+    speedKph: speedKph,
+    senderId: &#x27;TRACCAR:&#x27; + identity.deviceId,
+    sequence: sequence,
+    gpsTime: gpsTime
+  });
+}
+
+function rallyTrackingRequireKey_(value) {
+  if (String(value || &#x27;&#x27;) !== RALLY_TRACKING_KEY) {
+    throw new Error(&#x27;Invalid TD Tour Tracking key&#x27;);
+  }
+}
+
+
+/**
+ * PUBLIC INSTALL / REPAIR ENTRY POINT
+ *
+ * Run this once from the Apps Script editor after pasting the script.
+ * It creates or verifies all Tracking storage and the two time-driven triggers.
+ *
+ * Safe to run again: existing sheets/folders/triggers are reused rather than duplicated.
+ */
+function rallyTrackingSetup() {
+  const result = rallyTrackingTrackingSetup_();
+
+  console.log(&#x27;TD Tour Tracking setup complete&#x27;);
+  console.log(JSON.stringify(result));
+
+  return result;
+}
+
+function rallyTrackingTrackingSetup_() {
+  const automation = rallyTrackingEnsureAutomationTriggers_();
+  return {
+    version: RALLY_TRACKING_TRACKING_VERSION,
+    storageModel: &#x27;rally-project&#x27;,
+    trackingSheet: RALLY_TRACKING_TRACKING_SHEET,
+    eventsSheet: RALLY_TRACKING_EVENTS_SHEET,
+    keepTrackingDays: RALLY_TRACKING_KEEP_TRACKING_DAYS,
+    receiptRetentionHours: RALLY_TRACKING_STREAMLINED_RECEIPT_HOURS,
+    automation: automation
+  };
+}
+
+function rallyTrackingTrackingEventUpload_(payload) {
+  const eventId = String(payload.eventId || &#x27;&#x27;).trim();
+  if (!eventId) throw new Error(&#x27;eventId is required&#x27;);
+  const entrants = Array.isArray(payload.entrants) ? payload.entrants : [];
+  const routeData = payload.routeData &amp;&amp; typeof payload.routeData === &#x27;object&#x27; ? payload.routeData : {};
+  const uploadedAt = new Date();
+  const rallyTitle = String(payload.tourTitle || payload.rallyTitle || &#x27;&#x27;).trim();
+  if (!rallyTitle) throw new Error(&#x27;tourTitle is required&#x27;);
+  const tourDates = tourNormalizeDateArray_(payload.tourDates || payload.eventDates || payload.dates);
+  if (!tourDates.length) throw new Error(&#x27;tourDates is required&#x27;);
+  rallyTrackingRememberEventRally_(eventId, rallyTitle);
+  const storage = rallyTrackingEnsureStorage_(rallyTitle, eventId);
+  const sheet = storage.eventsSheet;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const lastRow = sheet.getLastRow();
+    let targetRow = lastRow + 1;
+    if (lastRow &gt; 1) {
+      const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (let i = 0; i &lt; ids.length; i++) {
+        if (String(ids[i][0] || &#x27;&#x27;) === eventId) { targetRow = i + 2; break; }
+      }
+    }
+    sheet.getRange(targetRow, 1, 1, RALLY_TRACKING_EVENT_HEADERS.length).setValues([[
+      eventId,
+      uploadedAt,
+      String(payload.pageHeader || &#x27;&#x27;).trim(),
+      String(payload.rallyTitle || &#x27;&#x27;).trim(),
+      String(payload.day || &#x27;&#x27;).trim(),
+      String(payload.route || &#x27;&#x27;).trim(),
+      entrants.length,
+      JSON.stringify(entrants),
+      JSON.stringify(routeData),
+      JSON.stringify(tourDates)
+    ]]);
+    return { eventId: eventId, uploadedAt: uploadedAt.toISOString(), entrantCount: entrants.length, tourDates: tourDates, replaced: targetRow &lt;= lastRow };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+function rallyTrackingTrackingEventRead_(p) {
+  const eventId = String(p.eventId || &#x27;&#x27;).trim();
+  if (!eventId) throw new Error(&#x27;eventId is required&#x27;);
+  const storage = rallyTrackingEnsureStorage_(&#x27;&#x27;, eventId);
+  const values = storage.eventsSheet.getDataRange().getValues();
+  for (let i = values.length - 1; i &gt;= 1; i--) {
+    if (String(values[i][0] || &#x27;&#x27;) !== eventId) continue;
+    return {
+      event: {
+        eventId: eventId,
+        uploadedAt: rallyTrackingIso_(values[i][1]),
+        pageHeader: String(values[i][2] || &#x27;&#x27;),
+        rallyTitle: String(values[i][3] || &#x27;&#x27;),
+        day: String(values[i][4] || &#x27;&#x27;),
+        route: String(values[i][5] || &#x27;&#x27;),
+        entrantCount: Number(values[i][6] || 0),
+        entrants: rallyTrackingSvcParseJson_(values[i][7], []),
+        routeData: rallyTrackingSvcParseJson_(values[i][8], {}),
+        tourDates: rallyTrackingSvcParseJson_(values[i][9], [])
+      }
+    };
+  }
+  throw new Error(&#x27;Tracking event not found: &#x27; + eventId);
+}
+
+function rallyTrackingEventIdAliases_(storage, eventId) {
+  // v3.20 compatibility bridge: an STC Recorder link created before the Tracking
+  // event package exists may use the rally title as its Event ID. Once the
+  // Tracking page uploads the project RID, both identities belong to the same
+  // rally project. Reads/status accept both without rewriting stored Report Keys.
+  const aliases = {};
+  const requested = String(eventId || &#x27;&#x27;).trim();
+  if (requested) aliases[requested] = true;
+
+  const rallyTitle = String(storage &amp;&amp; storage.rallyName || rallyTrackingRallyForEvent_(requested) || &#x27;&#x27;).trim();
+  if (rallyTitle) aliases[rallyTitle] = true;
+
+  return aliases;
+}
+
+function rallyTrackingTrackingStatus_(p) {
+  const eventId = String(p.eventId || &#x27;&#x27;).trim();
+  if (!eventId) throw new Error(&#x27;eventId is required&#x27;);
+
+  const storage = rallyTrackingEnsureStorage_(&#x27;&#x27;, eventId);
+  const eventLastRow = storage.eventsSheet.getLastRow();
+  let eventExists = false;
+  if (eventLastRow &gt; 1) {
+    eventExists = !!storage.eventsSheet
+      .getRange(2, 1, eventLastRow - 1, 1)
+      .createTextFinder(eventId)
+      .matchEntireCell(true)
+      .findNext();
+  }
+
+  const trackingLastRow = storage.trackingSheet.getLastRow();
+  let trackingRowCount = 0;
+  const eventAliases = rallyTrackingEventIdAliases_(storage, eventId);
+  if (trackingLastRow &gt; 1) {
+    const eventIdColumn = RALLY_TRACKING_TRACKING_HEADERS.indexOf(&#x27;Event ID&#x27;) + 1;
+    const values = storage.trackingSheet.getRange(2, eventIdColumn, trackingLastRow - 1, 1).getValues();
+    values.forEach(function (row) {
+      if (eventAliases[String(row[0] || &#x27;&#x27;).trim()]) trackingRowCount++;
+    });
+  }
+
+  return {
+    eventId: eventId,
+    eventExists: eventExists,
+    hasTrackingData: trackingRowCount &gt; 0,
+    trackingRowCount: trackingRowCount,
+    spreadsheetUrl: storage.spreadsheet.getUrl(),
+    trackingSheetUrl: storage.spreadsheet.getUrl() + &#x27;#gid=&#x27; + storage.trackingSheet.getSheetId()
+  };
+}
+
+function rallyTrackingSvcParseJson_(value, fallback) {
+  try { return JSON.parse(String(value || &#x27;&#x27;)); } catch (_) { return fallback; }
+}
+
+function rallyTrackingTrackingSubmit_(payload) {
+  const serverEntryMs = Date.now();
+  const clean = rallyTrackingValidateTrackingPayload_(payload);
+  tourAssertTrackingDateAllowed_(clean.eventId, clean.gpsTime);
+  const validatedMs = Date.now();
+
+  // v0.22 FAST RECEIPT CONTRACT:
+  // Do not inspect Tracking history before accepting a live report.
+  // The phone owns the original report identity and may resend the exact same packet
+  // when an acknowledgement is uncertain. Any duplicate raw receipts are reconciled
+  // after receipt by the one-minute worker and filtered by trackingRead immediately.
+  rallyTrackingRememberEventRally_(clean.eventId, clean.rallyTitle);
+  const trackingSheet = rallyTrackingOpenTrackingSheet_(clean.rallyTitle, clean.eventId);
+  const sheetReadyMs = Date.now();
+  const gpsTime = new Date(clean.gpsTime);
+  const reportKey = rallyTrackingReportKey_(clean);
+  const packetId = rallyTrackingPacketId_(payload, reportKey);
+  const received = new Date();
+
+  trackingSheet.appendRow([
+    received,
+    gpsTime,
+    clean.eventId,
+    clean.rallyTitle,
+    clean.day,
+    clean.route,
+    clean.rallyNo,
+    clean.driverName,
+    clean.latitude,
+    clean.longitude,
+    clean.accuracy,
+    clean.speedKph,
+    clean.senderId,
+    clean.sequence,
+    reportKey
+  ]);
+  const appendCompletedMs = Date.now();
+
+  // Best-effort recent receipt marker. Confirmation correctness does not depend on
+  // this cache: a cache miss falls back to the exact Tracking-sheet lookup.
+  let receiptCacheWritten = false;
+  const cacheStartedMs = Date.now();
+  try {
+    if (reportKey) {
+      CacheService.getScriptCache().put(
+        rallyTrackingLiveReceiptCacheKey_(reportKey),
+        &#x27;1&#x27;,
+        RALLY_TRACKING_LIVE_RECEIPT_CACHE_SECONDS
+      );
+      receiptCacheWritten = true;
+    }
+  } catch (_) {}
+  // Streamlined sender receipt: Packet ID is phone-facing identity; Report Key remains
+  // the authoritative Tracking-sheet identity used by the Rally Tracking service.
+  try { rallyTrackingSaveTrackReceipt_(packetId, reportKey); } catch (_) {}
+  const responsePreparedMs = Date.now();
+
+  return {
+    accepted: true,
+    duplicate: false,
+    stored: true,
+    reportKey: reportKey,
+    packetId: packetId,
+    rowNumber: null,
+    eventId: clean.eventId,
+    day: clean.day,
+    route: clean.route,
+    rallyNo: clean.rallyNo,
+    gpsTime: gpsTime.toISOString(),
+    receivedTime: received.toISOString(),
+    appendCompletedTime: new Date(appendCompletedMs).toISOString(),
+    receiptCacheWritten: receiptCacheWritten,
+    serverTiming: {
+      entryTime: new Date(serverEntryMs).toISOString(),
+      validateMs: Math.max(0, validatedMs - serverEntryMs),
+      sheetOpenMs: Math.max(0, sheetReadyMs - validatedMs),
+      appendMs: Math.max(0, appendCompletedMs - sheetReadyMs),
+      receiptCacheMs: Math.max(0, responsePreparedMs - cacheStartedMs),
+      totalCodeMs: Math.max(0, responsePreparedMs - serverEntryMs)
+    }
+  };
+}
+
+function rallyTrackingLiveReceiptCacheKey_(reportKey) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(reportKey || &#x27;&#x27;),
+    Utilities.Charset.UTF_8
+  );
+  const hex = digest.map(function(byte) {
+    const n = byte &lt; 0 ? byte + 256 : byte;
+    return (&#x27;0&#x27; + n.toString(16)).slice(-2);
+  }).join(&#x27;&#x27;);
+  return RALLY_TRACKING_LIVE_RECEIPT_CACHE_PREFIX + hex;
+}
+
+function rallyTrackingRecentReceiptExists_(reportKey) {
+  if (!reportKey) return false;
+  try {
+    return CacheService.getScriptCache().get(
+      rallyTrackingLiveReceiptCacheKey_(reportKey)
+    ) === &#x27;1&#x27;;
+  } catch (_) {
+    return false;
+  }
+}
+
+function rallyTrackingReportKey_(clean) {
+  if (!clean.senderId || clean.sequence === &#x27;&#x27; || !clean.gpsTime) return &#x27;&#x27;;
+  const gpsTime = new Date(clean.gpsTime);
+  if (isNaN(gpsTime.getTime())) return &#x27;&#x27;;
+  return [clean.eventId, clean.senderId, String(clean.sequence), gpsTime.toISOString()].join(&#x27;|&#x27;);
+}
+
+function rallyTrackingReportKeyExists_(sheet, reportKey) {
+  if (!reportKey) return false;
+  const lastRow = sheet.getLastRow();
+  if (lastRow &lt;= 1) return false;
+  const keyColumn = RALLY_TRACKING_TRACKING_HEADERS.indexOf(&#x27;Report Key&#x27;) + 1;
+  if (keyColumn &lt;= 0) return false;
+
+  const match = sheet
+    .getRange(2, keyColumn, lastRow - 1, 1)
+    .createTextFinder(reportKey)
+    .matchEntireCell(true)
+    .findNext();
+
+  return !!match;
+}
+
+function rallyTrackingTrackingConfirm_(p) {
+  const serverEntryMs = Date.now();
+  const reportKey = String((p &amp;&amp; p.reportKey) || &#x27;&#x27;).trim();
+  if (!reportKey) throw new Error(&#x27;reportKey is required&#x27;);
+
+  const cacheCheckedMs = Date.now();
+  if (rallyTrackingRecentReceiptExists_(reportKey)) {
+    const completedMs = Date.now();
+    return {
+      confirmed: true,
+      reportKey: reportKey,
+      source: &#x27;recent-receipt-cache&#x27;,
+      serverTiming: {
+        entryTime: new Date(serverEntryMs).toISOString(),
+        cacheMs: Math.max(0, completedMs - cacheCheckedMs),
+        sheetOpenMs: 0,
+        lookupMs: 0,
+        totalCodeMs: Math.max(0, completedMs - serverEntryMs)
+      }
+    };
+  }
+
+  // Compatibility/safety fallback for an older receipt, cache eviction or script restart.
+  const confirmEventId = String(reportKey.split(&#x27;|&#x27;)[0] || &#x27;&#x27;).trim();
+  const trackingSheet = rallyTrackingOpenTrackingSheet_(&#x27;&#x27;, confirmEventId);
+  const sheetReadyMs = Date.now();
+  const confirmed = rallyTrackingReportKeyExists_(trackingSheet, reportKey);
+  const lookupCompletedMs = Date.now();
+
+  return {
+    confirmed: confirmed,
+    reportKey: reportKey,
+    source: &#x27;sheet-fallback&#x27;,
+    serverTiming: {
+      entryTime: new Date(serverEntryMs).toISOString(),
+      cacheMs: Math.max(0, cacheCheckedMs - serverEntryMs),
+      sheetOpenMs: Math.max(0, sheetReadyMs - cacheCheckedMs),
+      lookupMs: Math.max(0, lookupCompletedMs - sheetReadyMs),
+      totalCodeMs: Math.max(0, lookupCompletedMs - serverEntryMs)
+    }
+  };
+}
+
+function rallyTrackingValidateTrackingPayload_(p) {
+  const latitude = Number(p.latitude);
+  const longitude = Number(p.longitude);
+  const gpsTime = String(p.gpsTime || &#x27;&#x27;);
+
+  if (!String(p.eventId || &#x27;&#x27;).trim()) throw new Error(&#x27;eventId is required&#x27;);
+  // TD Tour tracking is event-wide: Day and Route are optional compatibility fields.
+  if (!String(p.rallyNo || &#x27;&#x27;).trim()) throw new Error(&#x27;rallyNo is required&#x27;);
+  if (!Number.isFinite(latitude) || latitude &lt; -90 || latitude &gt; 90) throw new Error(&#x27;Invalid latitude&#x27;);
+  if (!Number.isFinite(longitude) || longitude &lt; -180 || longitude &gt; 180) throw new Error(&#x27;Invalid longitude&#x27;);
+  if (!gpsTime || isNaN(new Date(gpsTime).getTime())) throw new Error(&#x27;Invalid gpsTime&#x27;);
+
+  return {
+    eventId: String(p.eventId).trim(),
+    rallyTitle: String(p.rallyTitle || &#x27;&#x27;).trim(),
+    day: String(p.day || &#x27;&#x27;).trim(),
+    route: String(p.route || &#x27;&#x27;).trim(),
+    rallyNo: String(p.rallyNo).trim(),
+    driverName: String(p.driverName || &#x27;&#x27;).trim(),
+    latitude: latitude,
+    longitude: longitude,
+    accuracy: rallyTrackingOptionalNumber_(p.accuracy),
+    speedKph: rallyTrackingOptionalNumber_(p.speedKph !== undefined ? p.speedKph : p.speed),
+    senderId: String(p.senderId || &#x27;&#x27;).trim(),
+    sequence: rallyTrackingOptionalNumber_(p.sequence),
+    gpsTime: gpsTime
+  };
+}
+
+function rallyTrackingOptionalNumber_(value) {
+  if (value === &#x27;&#x27; || value === null || value === undefined) return &#x27;&#x27;;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : &#x27;&#x27;;
+}
+
+function rallyTrackingTrackingRead_(p) {
+  const eventId = String(p.eventId || &#x27;&#x27;).trim();
+  const storage = rallyTrackingEnsureStorage_(&#x27;&#x27;, eventId);
+  const eventAliases = rallyTrackingEventIdAliases_(storage, eventId);
+  const values = storage.trackingSheet.getDataRange().getValues();
+  if (values.length &lt;= 1) {
+    return { points: [], count: 0, generatedAt: new Date().toISOString() };
+  }
+
+  const day = String(p.day || &#x27;&#x27;).trim();
+  const route = String(p.route || &#x27;&#x27;).trim();
+  const rallyNo = String(p.rallyNo || &#x27;&#x27;).trim();
+  const latestOnly = String(p.latestOnly || &#x27;&#x27;).toLowerCase() === &#x27;true&#x27;;
+  const limit = Math.max(1, Math.min(50000, Number(p.limit) || 2000));
+
+  // v1.05 — Tour replay/history requests carry an explicit trackingDate/eventDate.
+  // In that case read the full retained history ending with that tracking day.
+  // Live tracking sends no date and therefore keeps the proven single current-day window.
+  const requestedTrackingDate = String(p.trackingDate || p.eventDate || &#x27;&#x27;).trim();
+  const trackingWindow = rallyTrackingTrackingDayWindow_(requestedTrackingDate);
+  let readWindowStart = trackingWindow.start;
+  let readWindowEnd = trackingWindow.end;
+  let readWindowLabel = trackingWindow.label;
+  if (requestedTrackingDate) {
+    const keepDays = Math.max(1, Number(RALLY_TRACKING_KEEP_TRACKING_DAYS) || 7);
+    readWindowStart = new Date(trackingWindow.end.getTime() - keepDays * 24 * 60 * 60 * 1000);
+    readWindowLabel = Utilities.formatDate(
+      readWindowStart,
+      trackingWindow.timeZone,
+      &#x27;yyyy-MM-dd&#x27;
+    ) + &#x27; to &#x27; + trackingWindow.label;
+  }
+
+  const seenReportKeys = {};
+  let points = values.slice(1).filter(function (rawRow) {
+    const reportKey = String(rawRow[14] || &#x27;&#x27;);
+    if (!reportKey) return true;
+    if (seenReportKeys[reportKey]) return false;
+    seenReportKeys[reportKey] = true;
+    return true;
+  }).map(rallyTrackingTrackingRowToObject_).filter(function (row) {
+    const gpsMs = new Date(row.gpsTime).getTime();
+    if (!Number.isFinite(gpsMs)) return false;
+    if (gpsMs &lt; readWindowStart.getTime() || gpsMs &gt;= readWindowEnd.getTime()) return false;
+    if (eventId &amp;&amp; !eventAliases[String(row.eventId || &#x27;&#x27;).trim()]) return false;
+    if (day &amp;&amp; row.day !== day) return false;
+    if (route &amp;&amp; row.route !== route) return false;
+    if (rallyNo &amp;&amp; row.rallyNo !== rallyNo) return false;
+    return true;
+  });
+
+  points.sort(function (a, b) {
+    return new Date(a.gpsTime).getTime() - new Date(b.gpsTime).getTime();
+  });
+
+  if (latestOnly) {
+    const latest = {};
+    points.forEach(function (row) {
+      const key = row.eventId + &#x27;|&#x27; + row.day + &#x27;|&#x27; + row.route + &#x27;|&#x27; + row.rallyNo;
+      latest[key] = row;
+    });
+    points = Object.keys(latest).map(function (key) { return latest[key]; });
+  }
+
+  if (points.length &gt; limit) points = points.slice(points.length - limit);
+
+  return {
+    version: RALLY_TRACKING_TRACKING_VERSION,
+    generatedAt: new Date().toISOString(),
+    trackingDay: readWindowLabel,
+    trackingWindowStart: readWindowStart.toISOString(),
+    trackingWindowEnd: readWindowEnd.toISOString(),
+    trackingTimeZone: trackingWindow.timeZone,
+    count: points.length,
+    points: points
+  };
+}
+
+function rallyTrackingTrackingHousekeeping_() {
+  const startedMs = Date.now();
+  const props = PropertiesService.getScriptProperties();
+  let rallyTitles = [];
+  try { rallyTitles = JSON.parse(props.getProperty(RALLY_TRACKING_PROP_PREFIX + &#x27;projectRallies&#x27;) || &#x27;[]&#x27;); } catch (_) { rallyTitles = []; }
+  if (!Array.isArray(rallyTitles)) rallyTitles = [];
+
+  const currentWindow = rallyTrackingTrackingDayWindowForDate_(new Date());
+  let beforeTrackingRows = 0;
+  let afterTrackingRows = 0;
+  let deletedTrackingRows = 0;
+  let duplicatesRemoved = 0;
+  let projectsChecked = 0;
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    rallyTitles.forEach(function(title) {
+      try {
+        const storage = rallyTrackingEnsureStorage_(title, &#x27;&#x27;);
+        projectsChecked++;
+        const sheet = storage.trackingSheet;
+        beforeTrackingRows += Math.max(0, sheet.getLastRow() - 1);
+        const liveDedupe = rallyTrackingDeduplicateTracking_(sheet);
+        duplicatesRemoved += Number(liveDedupe.duplicatesRemoved || 0);
+        deletedTrackingRows += rallyTrackingDeleteTrackingRowsBefore_(sheet, currentWindow);
+        afterTrackingRows += Math.max(0, sheet.getLastRow() - 1);
+      } catch (_) {}
+    });
+
+    const receiptCleanup = rallyTrackingCleanupStreamlinedReceipts_();
+    props.setProperty(RALLY_TRACKING_LAST_CLEANUP_PROP, currentWindow.label);
+
+    rallyTrackingRemoveObsoleteReplayTrigger_();
+    const cleanupTrigger = rallyTrackingEnsureDailyCleanupTrigger_();
+
+    return {
+      trackingDay: currentWindow.label,
+      projectsChecked: projectsChecked,
+      liveDuplicatesRemoved: duplicatesRemoved,
+      beforeTrackingRows: beforeTrackingRows,
+      trackingRowsRemoved: deletedTrackingRows,
+      afterTrackingRows: afterTrackingRows,
+      trackReceiptsRemoved: receiptCleanup.trackRemoved,
+      bulkReceiptsRemoved: receiptCleanup.bulkRemoved,
+      cleanupTrigger: cleanupTrigger,
+      totalCodeMs: Math.max(0, Date.now() - startedMs)
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+function rallyTrackingRunHousekeeping() {
+  return rallyTrackingTrackingHousekeeping_();
+}
+
+function rallyTrackingDeleteTrackingRowsBefore_(sheet, currentWindow) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow &lt;= 1) return 0;
+
+  const keepDays = Math.max(1, Number(RALLY_TRACKING_KEEP_TRACKING_DAYS) || 7);
+  const cutoffMs = currentWindow.start.getTime() - (keepDays - 1) * 24 * 60 * 60 * 1000;
+  const gpsValues = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+  const rowsToDelete = [];
+
+  gpsValues.forEach(function (row, index) {
+    const gpsMs = new Date(row[0]).getTime();
+    if (Number.isFinite(gpsMs) &amp;&amp; gpsMs &lt; cutoffMs) rowsToDelete.push(index + 2);
+  });
+
+  if (!rowsToDelete.length) return 0;
+
+  // Delete contiguous row groups from the bottom so row numbers remain valid.
+  let groupEnd = rowsToDelete[rowsToDelete.length - 1];
+  let groupStart = groupEnd;
+
+  for (let i = rowsToDelete.length - 2; i &gt;= -1; i--) {
+    const rowNo = i &gt;= 0 ? rowsToDelete[i] : null;
+    if (rowNo !== null &amp;&amp; rowNo === groupStart - 1) {
+      groupStart = rowNo;
+      continue;
+    }
+
+    sheet.deleteRows(groupStart, groupEnd - groupStart + 1);
+    if (rowNo !== null) {
+      groupStart = rowNo;
+      groupEnd = rowNo;
+    }
+  }
+
+  return rowsToDelete.length;
+}
+
+
+// ============================================================================
+// Streamlined live / Event End bulk transport (v0.23)
+// ============================================================================
+
+function rallyTrackingPacketId_(raw, reportKey) {
+  const id = String((raw &amp;&amp; (raw.packetId || raw.id)) || &#x27;&#x27;).trim();
+  return id || String(reportKey || &#x27;&#x27;).trim();
+}
+
+function rallyTrackingDigestKey_(prefix, value) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(value || &#x27;&#x27;),
+    Utilities.Charset.UTF_8
+  );
+  const hex = digest.map(function(byte) {
+    const n = byte &lt; 0 ? byte + 256 : byte;
+    return (&#x27;0&#x27; + n.toString(16)).slice(-2);
+  }).join(&#x27;&#x27;);
+  return String(prefix || &#x27;&#x27;) + hex;
+}
+
+function rallyTrackingTrackReceiptPropertyKey_(packetId) {
+  return rallyTrackingDigestKey_(RALLY_TRACKING_PACKET_RECEIPT_PREFIX, packetId);
+}
+
+function rallyTrackingBulkReceiptPropertyKey_(packageId) {
+  return rallyTrackingDigestKey_(RALLY_TRACKING_BULK_RECEIPT_PREFIX, packageId);
+}
+
+function rallyTrackingBulkReceiptCacheKey_(packageId) {
+  return rallyTrackingBulkReceiptPropertyKey_(packageId);
+}
+
+function rallyTrackingSaveTrackReceipt_(packetId, reportKey) {
+  packetId = String(packetId || &#x27;&#x27;).trim();
+  if (!packetId) return;
+  PropertiesService.getScriptProperties().setProperty(
+    rallyTrackingTrackReceiptPropertyKey_(packetId),
+    JSON.stringify({
+      packetId: packetId,
+      reportKey: String(reportKey || &#x27;&#x27;),
+      receivedAt: new Date().toISOString()
+    })
+  );
+}
+
+function rallyTrackingTrackConfirm_(p) {
+  const packetId = String((p &amp;&amp; p.packetId) || &#x27;&#x27;).trim();
+  if (!packetId) throw new Error(&#x27;packetId is required&#x27;);
+  const raw = PropertiesService.getScriptProperties().getProperty(
+    rallyTrackingTrackReceiptPropertyKey_(packetId)
+  );
+  if (!raw) return { confirmed: false, packetId: packetId };
+  try {
+    const receipt = JSON.parse(raw);
+    return {
+      confirmed: !!(receipt &amp;&amp; String(receipt.packetId || &#x27;&#x27;) === packetId),
+      packetId: packetId,
+      reportKey: receipt &amp;&amp; receipt.reportKey ? String(receipt.reportKey) : &#x27;&#x27;,
+      receivedAt: receipt &amp;&amp; receipt.receivedAt ? String(receipt.receivedAt) : &#x27;&#x27;
+    };
+  } catch (_) {
+    return { confirmed: false, packetId: packetId };
+  }
+}
+
+function rallyTrackingSaveBulkReceipt_(packageId, recordCount, appended, duplicateCount) {
+  const receipt = {
+    packageId: String(packageId),
+    recordCount: Number(recordCount || 0),
+    appended: Number(appended || 0),
+    duplicates: Number(duplicateCount || 0),
+    receivedAt: new Date().toISOString()
+  };
+  const raw = JSON.stringify(receipt);
+
+  // v0.25: confirmation is time-critical. Put the compact package receipt in
+  // Script Cache first so a full/busy properties store cannot hide a successful
+  // Tracking-sheet commit from the sender. Six hours comfortably covers field retry.
+  let cacheWritten = false;
+  try {
+    CacheService.getScriptCache().put(
+      rallyTrackingBulkReceiptCacheKey_(packageId),
+      raw,
+      21600
+    );
+    cacheWritten = true;
+  } catch (_) {}
+
+  // Keep the established 24-hour Script Properties receipt as a secondary path.
+  // It is deliberately best-effort: the cache receipt is sufficient for the
+  // immediate positive acknowledgement that lets the phone clear its package.
+  let propertyWritten = false;
+  try {
+    PropertiesService.getScriptProperties().setProperty(
+      rallyTrackingBulkReceiptPropertyKey_(packageId),
+      raw
+    );
+    propertyWritten = true;
+  } catch (_) {}
+
+  if (!cacheWritten &amp;&amp; !propertyWritten) {
+    throw new Error(&#x27;Bulk committed but package receipt could not be recorded&#x27;);
+  }
+  return { cacheWritten: cacheWritten, propertyWritten: propertyWritten };
+}
+
+function rallyTrackingBulkConfirm_(p) {
+  const packageId = String((p &amp;&amp; p.packageId) || &#x27;&#x27;).trim();
+  if (!packageId) throw new Error(&#x27;packageId is required&#x27;);
+
+  let raw = &#x27;&#x27;;
+  let source = &#x27;&#x27;;
+  try {
+    raw = CacheService.getScriptCache().get(rallyTrackingBulkReceiptCacheKey_(packageId)) || &#x27;&#x27;;
+    if (raw) source = &#x27;bulk-receipt-cache&#x27;;
+  } catch (_) {}
+
+  if (!raw) {
+    try {
+      raw = PropertiesService.getScriptProperties().getProperty(
+        rallyTrackingBulkReceiptPropertyKey_(packageId)
+      ) || &#x27;&#x27;;
+      if (raw) source = &#x27;bulk-receipt-property&#x27;;
+    } catch (_) {}
+  }
+
+  if (!raw) return { confirmed: false, packageId: packageId };
+  try {
+    const receipt = JSON.parse(raw);
+    return {
+      confirmed: !!(receipt &amp;&amp; String(receipt.packageId || &#x27;&#x27;) === packageId),
+      packageId: packageId,
+      recordCount: Number(receipt &amp;&amp; receipt.recordCount || 0),
+      appended: Number(receipt &amp;&amp; receipt.appended || 0),
+      duplicates: Number(receipt &amp;&amp; receipt.duplicates || 0),
+      receivedAt: receipt &amp;&amp; receipt.receivedAt ? String(receipt.receivedAt) : &#x27;&#x27;,
+      source: source
+    };
+  } catch (_) {
+    return { confirmed: false, packageId: packageId };
+  }
+}
+
+function rallyTrackingBulkSubmit_(payload) {
+  payload = payload || {};
+  const packageId = String(payload.packageId || &#x27;&#x27;).trim();
+  if (!packageId) throw new Error(&#x27;packageId is required&#x27;);
+  const tracks = Array.isArray(payload.tracks) ? payload.tracks : [];
+  if (!tracks.length) throw new Error(&#x27;bulk tracks missing&#x27;);
+  if (tracks.length &gt; 1000) throw new Error(&#x27;bulk too large&#x27;);
+
+  const firstTrack = tracks[0] || {};
+  const bulkRallyTitle = String(firstTrack.rallyTitle || &#x27;&#x27;).trim();
+  const bulkEventId = String(firstTrack.eventId || &#x27;&#x27;).trim();
+  if (!bulkRallyTitle) throw new Error(&#x27;bulk rallyTitle is required&#x27;);
+  rallyTrackingRememberEventRally_(bulkEventId, bulkRallyTitle);
+  const storage = rallyTrackingEnsureStorage_(bulkRallyTitle, bulkEventId);
+  const sheet = storage.trackingSheet;
+  const cleanTracks = tracks.map(function(raw) {
+    const clean = rallyTrackingValidateTrackingPayload_(raw);
+    tourAssertTrackingDateAllowed_(clean.eventId, clean.gpsTime);
+    const reportKey = rallyTrackingReportKey_(clean);
+    if (!reportKey) throw new Error(&#x27;bulk track Report Key missing&#x27;);
+    return { raw: raw, clean: clean, reportKey: reportKey };
+  });
+
+  // Event End is not latency critical. Read the Report Key column once, then append
+  // only records that have not already arrived through the live path.
+  const lastRow = sheet.getLastRow();
+  const existing = {};
+  if (lastRow &gt; 1) {
+    const keyColumn = RALLY_TRACKING_TRACKING_HEADERS.indexOf(&#x27;Report Key&#x27;) + 1;
+    sheet.getRange(2, keyColumn, lastRow - 1, 1).getDisplayValues().forEach(function(row) {
+      const key = String(row[0] || &#x27;&#x27;);
+      if (key) existing[key] = true;
+    });
+  }
+
+  const received = new Date();
+  const rows = [];
+  let duplicates = 0;
+  cleanTracks.forEach(function(item) {
+    const clean = item.clean;
+    const reportKey = item.reportKey;
+    if (existing[reportKey]) {
+      duplicates++;
+    } else {
+      rows.push([
+        received,
+        new Date(clean.gpsTime),
+        clean.eventId,
+        clean.rallyTitle,
+        clean.day,
+        clean.route,
+        clean.rallyNo,
+        clean.driverName,
+        clean.latitude,
+        clean.longitude,
+        clean.accuracy,
+        clean.speedKph,
+        clean.senderId,
+        clean.sequence,
+        reportKey
+      ]);
+      existing[reportKey] = true;
+    }
+
+    // v0.25: Event End bulk owns one package receipt. Do not create hundreds of
+    // individual persistent receipts/cache entries here. Live submissions retain
+    // their existing individual acknowledgement path unchanged.
+  });
+
+  if (rows.length) {
+    const startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, 1, rows.length, RALLY_TRACKING_TRACKING_HEADERS.length).setValues(rows);
+    sheet.getRange(startRow, 1, rows.length, 2).setNumberFormat(&#x27;dd/MM/yyyy HH:mm:ss&#x27;);
+  }
+
+  rallyTrackingSaveBulkReceipt_(packageId, tracks.length, rows.length, duplicates);
+
+  return {
+    accepted: true,
+    stored: true,
+    packageId: packageId,
+    recordCount: tracks.length,
+    appended: rows.length,
+    duplicates: duplicates,
+    trackingRows: Math.max(0, sheet.getLastRow() - 1),
+    receivedTime: received.toISOString(),
+    version: RALLY_TRACKING_TRACKING_VERSION
+  };
+}
+
+function rallyTrackingDeduplicateTracking_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow &lt;= 2) return { duplicatesRemoved: 0 };
+
+  const keyColumn = RALLY_TRACKING_TRACKING_HEADERS.indexOf(&#x27;Report Key&#x27;) + 1;
+  if (keyColumn &lt;= 0) return { duplicatesRemoved: 0 };
+
+  const values = sheet.getRange(2, keyColumn, lastRow - 1, 1).getValues();
+  const seen = {};
+  const duplicateRows = [];
+
+  values.forEach(function(row, index) {
+    const key = String(row[0] || &#x27;&#x27;);
+    if (!key) return;
+    if (seen[key]) {
+      duplicateRows.push(index + 2);
+      return;
+    }
+    seen[key] = true;
+  });
+
+  rallyTrackingDeleteRowsInBlocks_(sheet, duplicateRows);
+  return { duplicatesRemoved: duplicateRows.length };
+}
+
+function rallyTrackingDeleteRowsInBlocks_(sheet, rowNumbers) {
+  if (!rowNumbers || !rowNumbers.length) return;
+
+  rowNumbers.sort(function(a, b) { return b - a; });
+  let blockHigh = rowNumbers[0];
+  let blockLow = blockHigh;
+
+  for (let i = 1; i &lt; rowNumbers.length; i++) {
+    const row = rowNumbers[i];
+    if (row === blockLow - 1) {
+      blockLow = row;
+      continue;
+    }
+    sheet.deleteRows(blockLow, blockHigh - blockLow + 1);
+    blockHigh = row;
+    blockLow = row;
+  }
+  sheet.deleteRows(blockLow, blockHigh - blockLow + 1);
+}
+
+function rallyTrackingDateMs_(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  const ms = d.getTime();
+  return isNaN(ms) ? 0 : ms;
+}
+
+function rallyTrackingCleanupStreamlinedReceipts_() {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const cutoff = Date.now() - Math.max(1, Number(RALLY_TRACKING_STREAMLINED_RECEIPT_HOURS) || 24) * 60 * 60 * 1000;
+  let trackRemoved = 0;
+  let bulkRemoved = 0;
+
+  Object.keys(all).forEach(function(key) {
+    const isTrack = key.indexOf(RALLY_TRACKING_PACKET_RECEIPT_PREFIX) === 0;
+    const isBulk = key.indexOf(RALLY_TRACKING_BULK_RECEIPT_PREFIX) === 0;
+    if (!isTrack &amp;&amp; !isBulk) return;
+    let when = 0;
+    try {
+      const obj = JSON.parse(all[key]);
+      when = new Date(obj.receivedAt || obj.updatedAt || &#x27;&#x27;).getTime();
+    } catch (_) {}
+    if (when &amp;&amp; when &gt;= cutoff) return;
+    try {
+      props.deleteProperty(key);
+      if (isTrack) trackRemoved++; else bulkRemoved++;
+    } catch (_) {}
+  });
+  return { trackRemoved: trackRemoved, bulkRemoved: bulkRemoved };
+}
+
+function rallyTrackingEnsureAutomationTriggers_() {
+  rallyTrackingRemoveObsoleteReplayTrigger_();
+  return {
+    cleanup: rallyTrackingEnsureDailyCleanupTrigger_()
+  };
+}
+
+function rallyTrackingRemoveObsoleteReplayTrigger_() {
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === &#x27;rallyTrackingRunPackageReplay&#x27;) {
+      try { ScriptApp.deleteTrigger(trigger); } catch (_) {}
+    }
+  });
+}
+
+function rallyTrackingEnsureDailyCleanupTrigger_() {
+  if (rallyTrackingHasTriggerFor_(&#x27;rallyTrackingRunHousekeeping&#x27;)) {
+    return {
+      handler: &#x27;rallyTrackingRunHousekeeping&#x27;,
+      exists: true,
+      created: false,
+      requestedTime: &#x27;02:59&#x27;
+    };
+  }
+  const trigger = ScriptApp.newTrigger(&#x27;rallyTrackingRunHousekeeping&#x27;)
+    .timeBased()
+    .atHour(2)
+    .nearMinute(59)
+    .everyDays(1)
+    .create();
+  return {
+    handler: &#x27;rallyTrackingRunHousekeeping&#x27;,
+    exists: true,
+    created: true,
+    requestedTime: &#x27;02:59&#x27;,
+    triggerId: trigger.getUniqueId()
+  };
+}
+
+function rallyTrackingHasTriggerFor_(handler) {
+  return ScriptApp.getProjectTriggers().some(function(trigger) {
+    return trigger.getHandlerFunction() === handler;
+  });
+}
+
+function rallyTrackingFormatDateColumns_(sheet) {
+  const rowCount = Math.max(sheet.getMaxRows() - 1, 1);
+  sheet.getRange(2, 1, rowCount, 2).setNumberFormat(&#x27;dd/MM/yyyy HH:mm:ss&#x27;);
+  sheet.setColumnWidth(1, 165);
+  sheet.setColumnWidth(2, 165);
+}
+
+function rallyTrackingTrackingDayWindowForDate_(dateValue) {
+  const timeZone = RALLY_TRACKING_TRACKING_TIME_ZONE || Session.getScriptTimeZone() || &#x27;GMT&#x27;;
+  const date = (dateValue instanceof Date) ? dateValue : new Date(dateValue);
+  const shifted = new Date(date.getTime() - RALLY_TRACKING_TRACKING_DAY_START_HOUR * 60 * 60 * 1000);
+  const label = Utilities.formatDate(shifted, timeZone, &#x27;yyyy-MM-dd&#x27;);
+  return rallyTrackingTrackingDayWindow_(label);
+}
+
+function rallyTrackingTrackingDayWindow_(requestedDate) {
+  const timeZone = RALLY_TRACKING_TRACKING_TIME_ZONE || Session.getScriptTimeZone() || &#x27;GMT&#x27;;
+  let label = String(requestedDate || &#x27;&#x27;).trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(label)) {
+    const shiftedNow = new Date(Date.now() - RALLY_TRACKING_TRACKING_DAY_START_HOUR * 60 * 60 * 1000);
+    label = Utilities.formatDate(shiftedNow, timeZone, &#x27;yyyy-MM-dd&#x27;);
+  }
+
+  const hh = (&#x27;0&#x27; + RALLY_TRACKING_TRACKING_DAY_START_HOUR).slice(-2);
+  const start = Utilities.parseDate(label + &#x27; &#x27; + hh + &#x27;:00:00&#x27;, timeZone, &#x27;yyyy-MM-dd HH:mm:ss&#x27;);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+  return { label: label, start: start, end: end, timeZone: timeZone };
+}
+
+function rallyTrackingTrackingRowToObject_(r) {
+  return {
+    receivedTime: rallyTrackingIso_(r[0]),
+    gpsTime: rallyTrackingIso_(r[1]),
+    eventId: String(r[2] || &#x27;&#x27;),
+    rallyTitle: String(r[3] || &#x27;&#x27;),
+    day: String(r[4] || &#x27;&#x27;),
+    route: String(r[5] || &#x27;&#x27;),
+    rallyNo: String(r[6] || &#x27;&#x27;),
+    driverName: String(r[7] || &#x27;&#x27;),
+    latitude: Number(r[8]),
+    longitude: Number(r[9]),
+    accuracy: r[10] === &#x27;&#x27; ? null : Number(r[10]),
+    speedKph: r[11] === &#x27;&#x27; ? null : Number(r[11]),
+    senderId: String(r[12] || &#x27;&#x27;),
+    sequence: r[13] === &#x27;&#x27; ? null : Number(r[13])
+  };
+}
+
+function rallyTrackingIso_(value) {
+  if (value instanceof Date &amp;&amp; !isNaN(value.getTime())) return value.toISOString();
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? &#x27;&#x27; : d.toISOString();
+}
+
+
+function rallyTrackingEventMapKey_(eventId) {
+  const digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(eventId || &#x27;&#x27;),
+    Utilities.Charset.UTF_8
+  );
+  return RALLY_TRACKING_PROP_PREFIX + &#x27;eventRally_&#x27; + digest.map(function(byte) {
+    const n = byte &lt; 0 ? byte + 256 : byte;
+    return (&#x27;0&#x27; + n.toString(16)).slice(-2);
+  }).join(&#x27;&#x27;);
+}
+
+function rallyTrackingRememberRally_(rallyTitle) {
+  const title = String(rallyTitle || &#x27;&#x27;).trim();
+  if (!title) return;
+  const props = PropertiesService.getScriptProperties();
+  const key = RALLY_TRACKING_PROP_PREFIX + &#x27;projectRallies&#x27;;
+  let list = [];
+  try { list = JSON.parse(props.getProperty(key) || &#x27;[]&#x27;); } catch (_) { list = []; }
+  if (!Array.isArray(list)) list = [];
+  if (list.indexOf(title) &lt; 0) {
+    list.push(title);
+    props.setProperty(key, JSON.stringify(list.slice(-100)));
+  }
+}
+
+function rallyTrackingRememberEventRally_(eventId, rallyTitle) {
+  const id = String(eventId || &#x27;&#x27;).trim();
+  const title = String(rallyTitle || &#x27;&#x27;).trim();
+  if (!id || !title) return;
+  PropertiesService.getScriptProperties().setProperty(rallyTrackingEventMapKey_(id), title);
+  rallyTrackingRememberRally_(title);
+}
+
+function rallyTrackingRallyForEvent_(eventId) {
+  const id = String(eventId || &#x27;&#x27;).trim();
+  if (!id) return &#x27;&#x27;;
+  return String(PropertiesService.getScriptProperties().getProperty(rallyTrackingEventMapKey_(id)) || &#x27;&#x27;).trim();
+}
+
+function rallyTrackingOpenTrackingSheet_(rallyTitle, eventId) {
+  return rallyTrackingEnsureStorage_(rallyTitle, eventId).trackingSheet;
+}
+
+function rallyTrackingEnsureStorage_(rallyTitle, eventId) {
+  let title = String(rallyTitle || &#x27;&#x27;).trim();
+  if (!title) title = rallyTrackingRallyForEvent_(eventId);
+  if (!title) {
+    throw new Error(&#x27;Tracking rally project could not be resolved.&#x27;);
+  }
+
+  const project = ensureRallyStorage_(title);
+  rallyTrackingRememberRally_(title);
+
+  let eventsSheet = project.spreadsheet.getSheetByName(RALLY_TRACKING_EVENTS_SHEET);
+  if (!eventsSheet) eventsSheet = project.spreadsheet.insertSheet(RALLY_TRACKING_EVENTS_SHEET);
+  rallyTrackingEnsureHeaders_(eventsSheet, RALLY_TRACKING_EVENT_HEADERS);
+
+  let trackingSheet = project.spreadsheet.getSheetByName(RALLY_TRACKING_TRACKING_SHEET);
+  if (!trackingSheet) trackingSheet = project.spreadsheet.insertSheet(RALLY_TRACKING_TRACKING_SHEET);
+  rallyTrackingEnsureHeaders_(trackingSheet, RALLY_TRACKING_TRACKING_HEADERS);
+  const reportKeyColumn = RALLY_TRACKING_TRACKING_HEADERS.indexOf(&#x27;Report Key&#x27;) + 1;
+  if (reportKeyColumn &gt; 0) {
+    try { trackingSheet.hideColumns(reportKeyColumn); } catch (_) {}
+  }
+  rallyTrackingFormatDateColumns_(trackingSheet);
+
+  return {
+    folder: project.rallyFolder,
+    spreadsheet: project.spreadsheet,
+    eventsSheet: eventsSheet,
+    trackingSheet: trackingSheet,
+    errorsSheet: project.errorsSheet,
+    rallyName: title
+  };
+}
+
+function rallyTrackingEnsureHeaders_(sheet, headers) {
+  const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  const same = headers.every(function (h, i) { return String(current[i] || &#x27;&#x27;) === h; });
+  if (!same) sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+}
+
+function rallyTrackingLogError_(where, err, context) {
+  try {
+    const ctx = context || {};
+    const storage = rallyTrackingEnsureStorage_(
+      String(ctx.rallyTitle || ctx.rallyName || &#x27;&#x27;).trim(),
+      String(ctx.eventId || &#x27;&#x27;).trim()
+    );
+    storage.errorsSheet.appendRow([
+      new Date(),
+      String(where || &#x27;&#x27;),
+      String(err &amp;&amp; err.message ? err.message : err),
+      String(err &amp;&amp; err.stack ? err.stack : &#x27;&#x27;),
+      JSON.stringify(context || {})
+    ]);
+  } catch (logErr) {
+    console.error(&#x27;Rally Tracking error logging failed&#x27;, logErr, err);
+  }
+}
+
+function rallyTrackingJson_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+</pre></div></body></html>

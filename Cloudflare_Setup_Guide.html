@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TD Tours — Cloudflare and Traccar Setup Guide</title>
+<style>
+:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f5f7;color:#1b2430;font:15px/1.55 system-ui,-apple-system,'Segoe UI',Arial,sans-serif}main{max-width:890px;margin:20px auto;padding:28px 34px;background:#fff;border:1px solid #dfe3ea;border-radius:12px}h1{font-size:23px;margin:0 0 10px}h2{font-size:18px;margin:24px 0 10px;border-bottom:1px solid #e5e7eb;padding-bottom:6px}h3{font-size:16px;margin:15px 0 7px}p{margin:9px 0}li{margin:6px 0}ol,ul{padding-left:25px}a{color:#1d62c6}code{font-family:Consolas,monospace;background:#f2f4f7;padding:2px 4px;border-radius:4px;overflow-wrap:anywhere}.example{border:1px solid #dce2eb;border-radius:8px;background:#f7f9fc;padding:10px 14px;margin:10px 0;overflow-wrap:anywhere;font:14px Consolas,monospace}.note{border-left:3px solid #2563eb;padding:10px 12px;background:#f4f7ff;margin:14px 0}.warning{border-left:3px solid #d97706;padding:10px 12px;background:#fff8eb;margin:14px 0}.checklist{list-style:none;padding-left:0}.checklist li{margin:8px 0}.checklist li:before{content:'☐';margin-right:10px;font-size:19px;vertical-align:-1px}footer{color:#5d6572;font-size:12px;margin-top:20px}@media(max-width:650px){main{margin:0;padding:18px;border:0;border-radius:0}}@media print{body{background:#fff}main{border:0;margin:0;padding:0;max-width:none}a{color:#000}}
+</style></head><body><main>
+<h1>TD Tours — Cloudflare &amp; Traccar Setup Guide</h1>
+<p>This guide is for the new custodian of TD Tours. It explains why Cloudflare is used, how to set it up once, and how to confirm that GPS records are reaching TD Tours.</p>
+<h2>Overview</h2>
+<p><strong>Traccar Client</strong> is a free GPS tracking application for Android and iPhone. TD Tours uses a free <strong>Cloudflare Worker</strong> to relay Traccar position reports to its Google Tracking Sheet. TD Tours Tracking and shared organiser tracking apps then read that data.</p>
+<p>There are also two alternatives: <strong>Tracking PWA</strong> supports Android and iPhone but requires the app to remain open and visible; <strong>Tracking Android App</strong> supports tracking with the screen closed during normal Android phone use.</p>
+<p>A custodian sets up Cloudflare <strong>once</strong>. The resulting Worker can be used for future Tour events without creating a new Worker for each Tour.</p>
+<h2>1. Create a Cloudflare Worker</h2>
+<ol>
+<li>Open <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener">Cloudflare</a>. Create a free account or sign in.</li>
+<li>In the Cloudflare dashboard, open <strong>Workers &amp; Pages</strong> and choose to create a Worker (the menu wording may vary).</li>
+<li>Choose the basic <strong>Hello World</strong> starting Worker.</li>
+<li>Name the Worker, for example <code>traccar-relay</code>.</li>
+<li>Select <strong>Deploy</strong>.</li>
+</ol>
+<p>Cloudflare automatically assigns a web address to your new Worker when you first deploy Hello World. <strong>This address stays the same</strong> when you replace Hello World with the TD Tours Cloudflare.js code in Step 2.</p>
+<p>You will open this address to test the Worker in <strong>Step 3</strong>, then copy it into TD Tours Admin in <strong>Step 4</strong>.</p>
+<h2>2. Replace Hello World with TD Tours code</h2>
+<ol>
+<li>Open the new Worker and select <strong>Edit code</strong> or the equivalent code editor.</li>
+<li>Remove the existing Hello World JavaScript.</li>
+<li>In TD Tours, open <strong>Admin → Administration → First time setup → Open Cloudflare.js</strong>.</li>
+<li>Click in the code area, press <strong>Ctrl+A</strong> and then <strong>Ctrl+C</strong> to copy the complete Worker v0.03 code.</li>
+<li>Paste the copied JavaScript into the Cloudflare Worker editor.</li>
+<li>Find <code>TARGET_URL</code>. Replace its value with <strong>your own TD Tours Google Apps Script Web App deployment URL</strong>, ending in <code>/exec</code>.</li>
+<li>Click <strong>Deploy</strong> again to publish the replacement code.</li>
+</ol>
+<div class="warning"><strong>Important:</strong> Do not leave the previous custodian's Google URL in <code>TARGET_URL</code>. The Cloudflare Worker must forward to the Google deployment belonging to your TD Tours installation. The second Deploy is essential.</div>
+<h2>3. Check that the Worker is running</h2>
+<ol>
+<li>Open your deployed <code>workers.dev</code> address directly in a browser.</li>
+<li>It should display:</li>
+</ol>
+<div class="example">TD Tour Traccar Relay v0.03 OK</div>
+<p>If <strong>Hello World</strong> appears instead, return to the editor and deploy the TD Tours Worker code again.</p>
+<div class="note"><strong>What this proves:</strong> The Cloudflare Worker is reachable. It does <strong>not</strong> yet prove that GPS data is being accepted by Google. That is checked in Step 5.</div>
+<h2>4. Connect Cloudflare to TD Tours</h2>
+<ol>
+<li>Open <strong>TD Tours → Admin → Administration</strong>.</li>
+<li>Locate <strong>Traccar Connection (Optional)</strong>.</li>
+<li>Paste your Cloudflare Worker URL and select <strong>Save &amp; test</strong>.</li>
+<li>Close and reopen TD Tours to confirm the saved URL is still displayed.</li>
+</ol>
+<p>If the message says the browser could not verify Worker health, cross-origin restrictions may be responsible. This does not by itself mean the Worker failed. Check its URL directly as described in Step 3.</p>
+<h2>5. Test the complete tracking chain</h2>
+<h3>Prepare a test Tour</h3>
+<ol>
+<li>Create a TD Tours test Tour with <strong>today's date</strong>.</li>
+<li>Add a couple of entrants with driver surnames.</li>
+<li>Open <strong>Tracking → Tracking → Upload tracking data</strong>. Complete the upload and close its card.</li>
+</ol>
+<h3>Configure a mobile phone</h3>
+<ol>
+<li>Install <strong>Traccar Client</strong> on the phone.</li>
+<li>Allow the location permissions Traccar requests. <strong>Android:</strong> Open <strong>Settings → Apps → Traccar Client → Battery</strong> and select <strong>Unrestricted</strong>. <strong>iPhone / iOS:</strong> Open <strong>Settings → Privacy &amp; Security → Location Services → Traccar Client</strong>; select <strong>Always</strong> and enable <strong>Precise Location</strong>. Enable <strong>Background App Refresh</strong> for Traccar Client where available, and do not force-close the app during tracking. <em>Mobile settings and available functions may vary depending on phone model, operating system version and Traccar Client version.</em></li>
+<li>In TD Tours Home, select <strong>Traccar</strong> and share the link to the phone.</li>
+<li>Open the link; select <strong>Android</strong> or <strong>iPhone</strong>, then <strong>Configure Traccar</strong>.</li>
+<li>In Traccar Client, select <strong>Change settings</strong> if needed. Confirm the <strong>Server URL</strong> corresponds to your new Cloudflare Worker.</li>
+<li>Set <strong>Device identifier</strong> to the entrant's Tour number followed by surname, for example <code>12 Smith</code>, and save.</li>
+<li><strong>Tracking settings:</strong> For initial testing, set <strong>Distance = 0 metres</strong> and <strong>Interval = 30 seconds</strong> to confirm GPS reports are arriving. For normal Tour tracking, use <strong>Distance = 500 metres</strong>, supported by both Android and iOS. Return to the main Traccar screen.</li>
+<li>Enable <strong>Continuous tracking</strong> and open <strong>Show status</strong> to check for location reports at approximately 30-second intervals (subject to GPS reception and phone restrictions).</li>
+</ol>
+<h3>Confirm records reach Google and TD Tours</h3>
+<ol>
+<li>Return to TD Tours and open <strong>Tracking → Tracking → Open tracking log</strong>.</li>
+<li>In the Google Spreadsheet, select the <strong>Tracking</strong> tab.</li>
+<li>Confirm that <strong>new GPS records</strong> arrive for the test entrant, with the expected identifier and fresh timestamps.</li>
+<li>Return to the TD Tours Tracking map and confirm that the entrant's location marker is shown.</li>
+<li>On both Android and iPhone, verify that tracking continues with the screen locked, subject to the phone’s location and background-operation permissions.</li>
+</ol>
+<h2>Successful end-to-end test</h2>
+<ul class="checklist">
+<li>Worker URL displays the v0.03 OK response.</li>
+<li>TD Tours Admin remembers the Worker URL after reopening.</li>
+<li>Traccar Client shows the intended Server URL and Device identifier.</li>
+<li>Fresh GPS records appear in the Google Tracking Sheet.</li>
+<li>The entrant location appears on the TD Tours Tracking map.</li>
+</ul>
+<div class="note">Once all five checks pass, the connection has been tested end to end. The same Cloudflare Worker may be used for subsequent Tour events. Update the shared Tour identity when starting each new Tour; do not recreate the Worker.</div>
+<footer>TD Tours · Cloudflare relay setup and commissioning · Worker v0.03</footer>
+</main></body></html>

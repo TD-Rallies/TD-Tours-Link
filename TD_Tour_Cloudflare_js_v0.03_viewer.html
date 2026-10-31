@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TD Tours — Cloudflare.js v0.03</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#f3f4f6;color:#111827;font:14px/1.4 Arial,Helvetica,sans-serif}
+header{padding:9px 24px;background:#f3f4f6}main{padding:10px 22px 22px}
+.note{background:white;border:1px solid #e0e3e7;border-radius:11px;padding:12px 14px;margin:7px 0 28px}
+textarea{display:block;width:100%;min-height:65vh;border:1px solid #d0d6df;border-radius:10px;padding:16px;background:white;resize:vertical;font:12.5px/1.55 Consolas,Monaco,monospace;white-space:pre;overflow:auto;color:#111827}
+</style></head><body>
+<header>TD Tours Cloudflare.js v0.03</header>
+<main><div class="note">Click in the code area, press Ctrl+A, then Ctrl+C to copy into Cloudflare Workers. Replace the TARGET_URL with your Google Web App /exec URL.</div>
+<textarea aria-label="Cloudflare Worker v0.03 source" spellcheck="false" readonly>/**
+ * TD Tour Traccar Relay v0.03
+ *
+ * Purpose:
+ * - Receive Traccar Client requests at one permanent Cloudflare HTTPS endpoint.
+ * - Immediately return HTTP 200 OK to Traccar.
+ * - Forward Traccar tracking data to TD Tours Code.gs v1.07.
+ * - Preserve the Tour-specific eventId carried in the Traccar Server URL.
+ * - Add the TD Tour tracking transport mode + key.
+ *
+ * Event routing:
+ *   Traccar Server URL:
+ *   https://&lt;worker&gt;.workers.dev/?eventId=&lt;TOUR_EVENT_ID&gt;
+ *
+ * Cloudflare is generic. It is NOT edited for each Tour.
+ * The Tour-specific setup/share page supplies eventId in the Server URL.
+ */
+
+const TARGET_URL = 'https://script.google.com/macros/s/AKfycbx_zhOp5x7zkIWMKnuWouJX9ifmsNQVRSBV3vUFF0oTQALR1wlyR3NQisCSBr-j1A1xeQ/exec';
+const TRACKING_KEY = 'RALLY-TRACKING';
+const TRACKING_MODE = 'traccarSubmit';
+
+function buildForwardUrl(requestUrl) {
+  const incoming = new URL(requestUrl);
+  const eventId = String(incoming.searchParams.get('eventId') || '').trim();
+
+  if (!eventId) {
+    throw new Error('Missing eventId in Traccar Server URL');
+  }
+
+  const target = new URL(TARGET_URL);
+  target.searchParams.set('mode', TRACKING_MODE);
+  target.searchParams.set('key', TRACKING_KEY);
+  target.searchParams.set('eventId', eventId);
+
+  return target.toString();
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const incomingUrl = new URL(request.url);
+
+    // Plain Worker URL is a health check.
+    if (request.method === 'GET' &amp;&amp; !incomingUrl.searchParams.get('eventId')) {
+      return new Response('TD Tour Traccar Relay v0.03 OK', {
+        status: 200,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'no-store'
+        }
+      });
+    }
+
+    if (request.method !== 'POST') {
+      return new Response('Method not allowed', {
+        status: 405,
+        headers: { 'allow': 'GET, POST' }
+      });
+    }
+
+    if (!TARGET_URL.startsWith('https://script.google.com/macros/s/')) {
+      return new Response('Relay target not configured', {
+        status: 500,
+        headers: { 'content-type': 'text/plain; charset=utf-8' }
+      });
+    }
+
+    let forwardUrl;
+    try {
+      forwardUrl = buildForwardUrl(request.url);
+    } catch (err) {
+      console.log('Relay rejected:', err &amp;&amp; err.message ? err.message : String(err));
+      return new Response('Missing Tour eventId', {
+        status: 400,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'no-store'
+        }
+      });
+    }
+
+    // Read once so the Traccar body is forwarded unchanged.
+    const body = await request.arrayBuffer();
+
+    // Copy only useful/safe headers.
+    const headers = new Headers();
+    const contentType = request.headers.get('content-type');
+    if (contentType) headers.set('content-type', contentType);
+
+    const userAgent = request.headers.get('user-agent');
+    if (userAgent) headers.set('x-traccar-user-agent', userAgent);
+
+    headers.set('x-relay-source', 'td-tour-traccar-relay-v0.03');
+
+    // Return 200 to Traccar immediately; forward to Apps Script independently.
+    ctx.waitUntil(
+      fetch(forwardUrl, {
+        method: 'POST',
+        headers,
+        body,
+        redirect: 'follow'
+      }).then(async (response) =&gt; {
+        console.log('Forward response:', response.status);
+        try {
+          console.log('Forward body:', await response.text());
+        } catch (_) {}
+      }).catch((err) =&gt; {
+        console.log('Forward failed:', err &amp;&amp; err.message ? err.message : String(err));
+      })
+    );
+
+    return new Response('OK', {
+      status: 200,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+        'cache-control': 'no-store'
+      }
+    });
+  }
+};
+</textarea></main></body></html>

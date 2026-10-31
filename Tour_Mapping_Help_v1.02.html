@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tour Mapping Help v1.02</title>
+  <style>
+    :root{
+      --ink:#0f172a;
+      --muted:#64748b;
+      --line:#d1d5db;
+      --panel:#f8fafc;
+      --soft:#eef2f7;
+      --blue:#0b72c9;
+      --blue2:#2563eb;
+      --green:#16a34a;
+      --red:#dc2626;
+      --amber:#f59e0b;
+      --purple:#7c3aed;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--ink);background:#eef2f7;font-size:15px;line-height:1.48}
+    body{padding:18px}
+    .guideShell{max-width:1120px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 42px rgba(15,23,42,.12);overflow:hidden}
+    .topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;background:#fff;border-bottom:1px solid #e5e7eb}
+    .topbarTitle{font-size:18px;font-weight:850;letter-spacing:-.01em}
+    .topbarActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:var(--ink);font:inherit;font-size:14px;font-weight:800;padding:8px 13px;cursor:pointer}
+    button:hover{filter:brightness(.98)}
+    .content{padding:42px 48px 54px}
+    h1{margin:0 0 18px;color:var(--blue);font-size:30px;line-height:1.12;letter-spacing:-.02em}
+    h2{margin:30px 0 10px;color:var(--blue);font-size:21px;line-height:1.2}
+    h3{margin:22px 0 8px;font-size:16px;color:#1e293b}
+    p{margin:0 0 12px}
+    ul,ol{margin:0 0 16px 22px;padding:0}
+    li{margin:5px 0}
+    .lead{font-size:16px;color:#334155;max-width:920px}
+    .note{border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:12px 14px;margin:16px 0;color:#1e3a8a}
+    .warn{border-color:#fed7aa;background:#fff7ed;color:#7c2d12}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0 20px}
+    .card{border:1px solid #dbe3ee;background:#fbfdff;border-radius:13px;padding:14px}
+    .card b{display:block;margin-bottom:5px;font-size:15px}
+    .pillRow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}
+    .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;padding:6px 10px;font-size:13px;font-weight:750;color:#334155}
+    .btnBlue{color:#fff;background:var(--blue2);border-color:var(--blue2)}
+    .btnGreen{color:#fff;background:var(--green);border-color:var(--green)}
+    .btnRed{color:#fff;background:var(--red);border-color:var(--red)}
+    .miniTable{width:100%;border-collapse:separate;border-spacing:0;margin:14px 0 18px;border:1px solid #d1d5db;border-radius:12px;overflow:hidden}
+    .miniTable th,.miniTable td{border-bottom:1px solid #e5e7eb;padding:9px 10px;text-align:left;vertical-align:top}
+    .miniTable th{background:#f1f5f9;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:#334155}
+    .miniTable tr:last-child td{border-bottom:0}
+    code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:1px 5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.92em}
+    .footer{margin-top:34px;padding-top:14px;border-top:1px solid #e5e7eb;color:var(--muted);font-size:13px}
+    @media(max-width:760px){body{padding:8px}.content{padding:28px 22px 36px}.grid{grid-template-columns:1fr}.topbar{align-items:flex-start}.topbarActions{justify-content:flex-end}h1{font-size:25px}}
+
+    /* v1.02: simplify Tour Mapping/Schedule relationship. Mapping owns the working map; Schedule imports only a saved map file. */
+    /* v1.01: renamed to Tour Mapping Help and updated Reset guidance for all-day local Tour Mapping storage. */
+    /* v0.22: explain how imported Field Tool points and Trip Marks are reviewed and added to the formal route. */
+    /* v0.21: update Share Route for saved-file folder sharing and revise Distance CAL for user-entered mapped/measured comparison plus independent signed correction. */
+    /* v0.20: add Distance CAL guidance: reference-vs-map calibration, applied percentage, active warning, and effect on rally distances. */
+    /* v0.19: document imported Route Survey behaviour, Show / Hide, persistence, and Clear Imported Field Data. */
+    /* v0.18: when opened inside the Rally Shell document viewer,
+       hide this guide's own action bar to avoid duplicate controls. */
+    html.shellEmbedded .topbar{display:none}
+    @media print{body{background:white;padding:0}.guideShell{box-shadow:none;border:0;border-radius:0}.topbarActions{display:none}.topbar{position:static}.content{padding:28px 34px}.note,.card{break-inside:avoid}}
+  </style>
+  <script>
+    try{
+      if(window.self !== window.top){
+        document.documentElement.classList.add("shellEmbedded");
+      }
+    }catch(_e){
+      document.documentElement.classList.add("shellEmbedded");
+    }
+  </script>
+</head>
+
+<body>
+  <main class="guideShell">
+    <header class="topbar">
+      <div class="topbarTitle">Tour Mapping Help</div>
+      <div class="topbarActions">
+        <button type="button" onclick="window.print()">Print</button>
+        <button type="button" onclick="window.open(location.href, '_blank', 'noopener')">Open in new tab</button>
+        <button type="button" onclick="window.close()">Close</button>
+      </div>
+    </header>
+
+    <section class="content">
+      <h1>Tour Mapping Help</h1>
+      <p class="lead">The Mapping page is used to build or edit the Tour route, keep waypoints in driving order, import Field Tool data, calibrate route distances, and save the map file for use in Schedule and field work.</p>
+
+      <h2>Overview</h2>
+      <p>The page has two main areas: the left panel for route controls and waypoint details, and the map area for placing, checking and editing points. <b>Fit Route</b> and <b>Help</b> are centred for quick access.</p>
+      <p>The map banner shows the current <b>Map</b> detail for the selected Tour day. Tour Mapping is day-based and one route per day.</p>
+      
+
+      <div class="note warn">
+        <b>Save before Schedule:</b> Mapping keeps the working map locally while you work, but Schedule can only import a map after <b>Save Route</b> has created the map JSON file in the Tour <code>Maps</code> folder.
+      </div>
+      <div class="note">
+        <b>Normal workflow:</b> select the correct Tour day, build or edit the map, enter waypoint details/notes, select <b>Save Route</b>, then import that saved map into the matching Tour day in Schedule.
+      </div>
+
+      <h2>What the main buttons do</h2>
+      <table class="miniTable">
+        <thead><tr><th>Button</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td><b>Fit Route</b></td><td>Zooms the map to show the plotted route and route points.</td></tr>
+          <tr><td><b>Add Next WP</b></td><td>Turns on one-click add mode. On a new blank route it starts ON automatically. Click the map once for each waypoint added at the end of the route.</td></tr>
+          <tr><td><b>Insert WP After Selected</b></td><td>Select a route point first, then use this to insert one normal waypoint after the selected point.</td></tr>
+          <tr><td><b>Save Route</b></td><td>Saves a versioned Tour map JSON directly in the Tour <code>Maps</code> folder and updates the Mapping working copy.</td></tr>
+          <tr><td><b>Load Route</b></td><td>Opens the Tour <code>Maps</code> folder so a saved mapping file can be reopened.</td></tr>
+          <tr><td><b>▼ / ▲</b></td><td>Jumps the left panel to the bottom controls or back to the top.</td></tr>
+          <tr><td><b>Import Field Data</b></td><td>Imports waypoints, notes, Trip Marks and Route Survey data captured with the Rally Field Tool.</td></tr>
+          <tr><td><b>Share Field Tool</b></td><td>Provides the Field Tool link so it can be opened on a phone for field capture and route checking.</td></tr>
+          <tr><td><b>Share Route</b></td><td>Helps locate the already-saved Tour route JSON so it can be sent to a mobile device by Email or another suitable method.</td></tr>
+          <tr><td><b>Distance CAL</b></td><td>Compares mapped and independently measured distance, then allows a signed correction percentage to be applied to Tour distances.</td></tr>
+          <tr><td><b>Reset</b></td><td>Clears the Mapping page and all locally stored Mapping day routes for the active Tour. Saved map files in the Tour workspace are not deleted.</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Tour Workspace and map files</h2>
+      <p>Admin sets one shared <b>Tour Workspace</b>. Inside that workspace, each Tour has its own project folder. Mapping stores Tour map files directly in:</p>
+      <div class="note">
+        <b>Example folder structure</b><br>
+        <code>Tour projects / Cape Tour 2026 / Maps</code>
+      </div>
+      <p>There are no route subfolders in TD Tour.</p>
+      <p>Each time <b>Save Route</b> is used, Mapping creates a new versioned JSON file. The filename is based on the Tour title, day and save time.</p>
+      <p>Example:</p>
+      <p><code>Cape_Tour_2026_Day_1_map_2026-08-29_1045.json</code></p>
+      <p>The Map description is stored inside the file and shown in the Map pill with the saved version date and time. Use a short description that helps identify the version.</p>
+      <h2>Mapping and Schedule</h2>
+      <p>Mapping owns the Tour map. Schedule does not use the unsaved working map directly.</p>
+      <div class="note warn">
+        <b>A map must be saved before it is available to Schedule.</b> Select <b>Save Route</b> first, then use <b>Import Mapped Route</b> in Schedule to choose that saved map file.
+      </div>
+      <p>If the route is changed later, save the revised map again and import the new saved version into the matching Tour day in Schedule.</p>
+
+
+      <h2>Reset Mapping</h2>
+      <p><b>Reset</b> is a full clean-start action for the active Tour. It clears the Mapping page and removes all locally stored Mapping day routes for that Tour, including routes that Tracking would otherwise continue to display.</p>
+      <div class="note warn">
+        Before Reset proceeds, Mapping warns that all locally stored Tour day routes will be cleared. Saved map JSON files in the Tour workspace <b>Maps</b> folder are not deleted.
+      </div>
+      <p>If a route is needed again after Reset, use <b>Load Route</b> and reopen the saved map file from the Tour workspace.</p>
+
+      <h2>Starting a new map</h2>
+      <p>When a blank route is opened, <b>Add Next WP</b> is already ON. Move or zoom the map to the required starting position, then click the map to place the first waypoint.</p>
+      <p>The first waypoint becomes the Start of the ordered Tour route. Continue clicking the map in driving order to add further waypoints, or turn <b>Add Next WP</b> off when the initial placement is complete.</p>
+
+      <h2>Route points and order</h2>
+      <p>Each route point appears as a card in the left panel and as a marker on the map. Select a card or marker before editing it or inserting a waypoint after it.</p>
+      <p>Route order matters. The saved Mapping file keeps the waypoint order, notes and distances.</p>
+
+      <div class="grid">
+        <div class="card">
+          <b>Waypoints</b>
+          Normal Tour route points used for instructions and important route positions.
+        </div>
+        <div class="card">
+          <b>Breadcrumbs</b>
+          Route-shaping points used to guide the mapped road path. Breadcrumbs are not imported into Schedule.
+        </div>
+      </div>
+
+      <h2>Insert WP After Selected</h2>
+      <p>Use <b>Insert WP After Selected</b> when an instruction point needs to be added into an existing Tour route.</p>
+      <p>First select the waypoint that comes <b>before</b> the new point. Select <b>Insert WP After Selected</b>, then click the map where the new waypoint should be added.</p>
+      <p>After the new waypoint is added, Insert mode turns off automatically.</p>
+
+      <h2>Breadcrumbs</h2>
+      <p>Breadcrumb mode is for sketching or refining the route path between important waypoints.</p>
+      <p>To add breadcrumbs at the end of the route, turn <b>Breadcrumb ON</b>, click the map in driving order, then turn <b>Breadcrumb OFF</b> when done.</p>
+      <p>To insert breadcrumbs within an existing route, first select the previous point, turn <b>Breadcrumb ON</b>, place the required breadcrumb points, and turn it OFF when finished.</p>
+      <div class="note warn">
+        Adding a normal waypoint automatically turns Breadcrumb mode off. This helps prevent accidental breadcrumb placement during normal route editing.
+      </div>
+
+      <h2>Import Field Data</h2>
+      <p>Use <b>Import Field Data</b> to bring in data captured with the Rally Field Tool. Imported waypoints, Trip Marks, notes and Route Survey information first appear as field-reference information. They do <b>not</b> become part of the formal mapped route automatically.</p>
+
+      <h3>Adding imported details to the route</h3>
+      <ol>
+        <li>Select <b>Import Field Data</b> and load the Field Tool file.</li>
+        <li>The imported points and Trip Marks appear on the map and in the <b>Imported Field Data</b> cards.</li>
+        <li>Use <b>Zoom</b>, or select the imported point, to review its GPS position and note.</li>
+        <li>Use Google Earth, Maps Satellite View or Street View where further location checking is useful.</li>
+        <li>If the point belongs in the formal Tour route, select <b>Add to Route</b>.</li>
+        <li>A captured waypoint keeps its Field Tool note when it is added.</li>
+        <li>A <b>Trip Mark</b> is added as a normal Instruction waypoint and carries its captured note.</li>
+        <li>Mapping inserts the new point according to its position along the route and recalculates distances.</li>
+      </ol>
+
+      <p>Imported points that are not added remain field-reference information only and are not supplied to Schedule.</p>
+      <p>If the Field Data contains a <b>Route Survey</b>, Mapping shows it as a separate dotted reference line. It does not alter the formal mapped route, distances or OSRM routing.</p>
+      <p>Use <b>Show / Hide</b> to temporarily hide or restore the Route Survey. Its visibility is retained when the Mapping file is saved and reopened.</p>
+      <div class="note">
+        <b>Clear Imported Field Data</b> removes remaining field-reference data, including the Route Survey. It does not remove or change the formal mapped route.
+      </div>
+
+      <h2>Distance calibration</h2>
+      <p><b>Distance CAL</b> compares the mapped distance with an independently measured distance, a percentage correction can be applied to Tour distance values without changing the route geometry.</p>
+      <p>The calculated <b>Error %</b> shows the comparison. The <b>Correction %</b> is the value you choose to apply.</p>
+
+      <h3>Using Distance CAL</h3>
+      <ol>
+        <li>Select <b>Distance CAL</b>.</li>
+        <li>Enter the <b>Mapped distance</b>.</li>
+        <li>Enter the independently <b>Measured distance</b>, for example from the Rally Field Tool GPS odometer or a calibrated distance-measuring device.</li>
+        <li>Mapping calculates the <b>Error %</b>.</li>
+        <li>Enter the signed <b>Correction % (+ / -)</b> to apply.</li>
+        <li>Select <b>Apply Correction</b>.</li>
+      </ol>
+
+      <p>Example: if the mapped distance is <code>44.000 km</code> and the measured distance is <code>44.040 km</code>, the error is approximately <code>+0.091%</code>. A correction such as <code>+0.09%</code> can then be applied.</p>
+
+      <div class="note">
+        Mapping keeps the raw OSRM/map distance as the underlying reference. Distance calibration changes the Tour distance values only; it does not move the route or change waypoint coordinates.
+      </div>
+
+      <h2>Mapping and the Tour project</h2>
+      <p>Mapping is part of the active Tour project. Each Tour day has its own Mapping working data.</p>
+      <p><b>Save Route</b> creates a reusable versioned map file in the Tour <code>Maps</code> folder.</p>
+      <p><b>Save Project</b> saves the complete Tour project, including Admin and Schedule data. The map itself is saved separately with <b>Save Route</b> in the Tour <code>Maps</code> folder.</p>
+      <h2>Importing a saved map into Schedule</h2>
+      <p>Changes made in Mapping do not alter Schedule automatically.</p>
+      <ol>
+        <li>Select the correct Tour day in Mapping.</li>
+        <li>Build or edit the route.</li>
+        <li>Select <b>Save Route</b>. This creates the map JSON file in the Tour <code>Maps</code> folder.</li>
+        <li>Open Schedule and select the same Tour day.</li>
+        <li>Select <b>Import Mapped Route</b>.</li>
+        <li>Choose the saved map file from the Tour <code>Maps</code> folder.</li>
+        <li>Check the imported route and save the Tour project.</li>
+      </ol>
+      <div class="note">
+        <b>Important:</b> If you change the map again, save a new map version before importing the revision into Schedule.
+      </div>
+
+
+      <h2>Share Route</h2>
+      <p><b>Share Route</b> helps locate the already-saved route JSON so it can be sent to a phone or other device.</p>
+      <ol>
+        <li>Save the route first.</li>
+        <li>Select <b>Share Route</b>.</li>
+        <li>Select <b>Open Route Folder</b>.</li>
+        <li>In the Windows file window, right-click the required JSON file and send/share it using Email or another suitable method.</li>
+      </ol>
+
+      <h2>Sharing a route with the Field Tool</h2>
+      <p>The saved Mapping JSON can be loaded into the Rally Field Tool for <b>Route Validation</b>.</p>
+      <ol>
+        <li>Finish or update the route in Mapping and select <b>Save Route</b>.</li>
+        <li>Select <b>Share Route</b>, then <b>Open Route Folder</b>.</li>
+        <li>Send the required Tour map JSON to the mobile device.</li>
+        <li>On the phone, download the JSON file.</li>
+        <li>Open the Rally Field Tool and select <b>Route Validation</b>.</li>
+        <li>Select <b>Load Route to Validate</b> and choose the downloaded map JSON.</li>
+        <li>Select the waypoint where the validation run will start, then begin the validation trip.</li>
+      </ol>
+      <p>During the run, the Field Tool compares the mapped cumulative distance with the GPS trip distance recorded at each waypoint.</p>
+
+      <h2>Using Mapping with Schedule</h2>
+      <p>A Tour map is available to Schedule only after it has been saved with <b>Save Route</b>. The saved file is then imported using <b>Import Mapped Route</b>.</p>
+      <p>The import uses ordered waypoints, notes and mapped distances. Breadcrumbs are not imported because they are Mapping support points only.</p>
+
+      <h3>Mapped route ownership</h3>
+      <p>Waypoints imported from Mapping remain owned by Mapping for physical route structure and mapped distance.</p>
+      <ul>
+        <li>Mapped distances are locked in Schedule.</li>
+        <li>Mapped waypoints must be moved or deleted in Mapping.</li>
+        <li>After changing the route, save the revised map and import it into Schedule again.</li>
+      </ul>
+
+      <h3>Schedule additions</h3>
+      <p>Schedule may contain additional instruction rows that are not part of the mapped route.</p>
+      <ul>
+        <li>These rows belong to Schedule.</li>
+        <li>They can be edited or deleted in Schedule.</li>
+        <li>They are preserved when the mapped route is imported again.</li>
+        <li>Rows with entered distances are merged into route-distance order; blank-distance rows remain at the end.</li>
+      </ul>
+
+      <div class="footer">TD Tour — Tour Mapping Help v1.02</div>
+    </section>
+  </main>
+</body>
+
+</html>

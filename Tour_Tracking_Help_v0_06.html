@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tracking guide v0.06</title>
+  <style>
+    :root{--ink:#0f172a;--muted:#64748b;--line:#d1d5db;--blue:#0b72c9;--blue2:#2563eb;--green:#16a34a;--orange:#f59e0b;--grey:#94a3b8;--red:#dc2626}
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--ink);background:#eef2f7;font-size:15px;line-height:1.48}
+    body{padding:18px}
+    .guideShell{max-width:1120px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 42px rgba(15,23,42,.12);overflow:hidden}
+    .topbar{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;background:#fff;border-bottom:1px solid #e5e7eb}
+    .topbarTitle{font-size:18px;font-weight:850;letter-spacing:-.01em}
+    .topbarActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    button{border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:var(--ink);font:inherit;font-size:14px;font-weight:800;padding:8px 13px;cursor:pointer}
+    button:hover{filter:brightness(.98)}
+    .content{padding:42px 48px 54px}
+    h1{margin:0 0 18px;color:var(--blue);font-size:30px;line-height:1.12;letter-spacing:-.02em}
+    h2{margin:30px 0 10px;color:var(--blue);font-size:21px;line-height:1.2}
+    h3{margin:22px 0 8px;font-size:16px;color:#1e293b}
+    p{margin:0 0 12px}
+    ul,ol{margin:0 0 16px 22px;padding:0}
+    li{margin:5px 0}
+    .lead{font-size:16px;color:#334155;max-width:920px}
+    .note{border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:12px 14px;margin:16px 0;color:#1e3a8a}
+    .warn{border-color:#fed7aa;background:#fff7ed;color:#7c2d12}
+    .status{border:1px solid #dbe3ee;background:#fbfdff;border-radius:12px;padding:11px 13px;margin:9px 0}
+    .swatch{display:inline-block;width:12px;height:12px;margin-right:8px;border:1px solid rgba(0,0,0,.2);border-radius:50%;vertical-align:-1px}
+    .green{background:var(--green)}.orange{background:var(--orange)}.grey{background:var(--grey)}.red{background:var(--red)}
+    .pillRow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}
+    .pill{display:inline-flex;align-items:center;border:1px solid #cbd5e1;border-radius:999px;background:#f8fafc;padding:6px 10px;font-size:13px;font-weight:750;color:#334155}
+    .btnBlue{color:#fff;background:var(--blue2);border-color:var(--blue2)}
+    .footer{margin-top:34px;padding-top:14px;border-top:1px solid #e5e7eb;color:var(--muted);font-size:13px}
+    @media(max-width:760px){body{padding:8px}.content{padding:28px 22px 36px}.topbar{align-items:flex-start}h1{font-size:25px}}
+    html.shellEmbedded .topbar{display:none}
+    @media print{body{background:white;padding:0}.guideShell{box-shadow:none;border:0;border-radius:0}.topbarActions{display:none}.topbar{position:static}.content{padding:28px 34px}.note,.status{break-inside:avoid}}
+  </style>
+  <script>
+    try{if(window.self!==window.top)document.documentElement.classList.add('shellEmbedded')}catch(_e){document.documentElement.classList.add('shellEmbedded')}
+  </script>
+</head>
+<body>
+<main class="guideShell">
+  <header class="topbar">
+    <div class="topbarTitle">Tracking guide</div>
+    <div class="topbarActions">
+      <button type="button" onclick="window.print()">Print</button>
+      <button type="button" onclick="window.open(location.href,'_blank','noopener')">Open in new tab</button>
+      <button type="button" onclick="window.close()">Close</button>
+    </div>
+  </header>
+  <section class="content">
+    <h1>Tracking — Live Tracking and Event Replay</h1>
+    <p class="lead">The Tracking page shows entrant positions during the Tour, whether or not a suggested route has been mapped. Tracking devices normally report at approximately <b>30-second intervals</b>, (Traccar 500 metres) subject to connectivity and device operation. It has two clear operating modes: <b>Live Tracking</b> for the current event and <b>Event Replay</b> for reviewing positions already stored in the Google Tracking sheet.</p>
+
+
+    <h2>Tracking event upload</h2>
+    <div class="note warn"><b>Upload required:</b> Tracking must be uploaded before Live Tracking or Event Replay can operate.</div>
+    <p>Tracking does <b>not</b> require a mapped route or suggested route track. To use Tracking, the event needs the <b>entrants</b> to be tracked and the <b>Tour dates</b> on which Tracking is available.</p>
+    <p>Select <b>Upload tracking data</b> to send these details to the separate Tracking Google connection. Mapped route data can be included when available, but it is not required for entrant position tracking.</p>
+    <div class="note"><b>Rest days:</b> Tracking is not enabled on rest days. Rest days are omitted from the Tour tracking dates, so the mobile tracker cannot start Tracking on those dates.</div>
+
+    <h2>Live Tracking</h2>
+    <p>Live Tracking reads the latest accepted position for each entrant from the separate Tracking Google connection. The page refreshes the live positions at regular intervals and keeps the map focused on the current Tour or selected entrant.</p>
+    <div class="note"><b>Live positions are last known positions.</b> A delayed or stale marker means that a newer report has not yet been received; it does not prove that the entrant has stopped.</div>
+
+    <h2>Main buttons</h2>
+    <div class="pillRow"><span class="pill btnBlue">Entrants</span><span class="pill">Settings</span><span class="pill">Help</span><span class="pill">Event Replay</span><span class="pill btnBlue">Tracking</span></div>
+    <h3>Entrants</h3>
+    <p>Opens the Entrants card. Select <b>All Entrants</b> or one entrant. Selecting an entrant centres the map and opens the entrant card.</p>
+    <h3>Settings</h3>
+    <p>Sets entrant dot size, marker labels, the selected-entrant trail and suggested-route visibility.</p>
+    <h3>Tracking — desktop only</h3>
+    <p>Opens the Tracking setup card for event upload, the Google tracking log, the Tracking Monitor link and Google Tracking connection.</p>
+
+    <h2>Entrant dots and colours</h2>
+    <div class="status"><span class="swatch green"></span><b>Green — Active</b><br>Recent tracking information is available.</div>
+    <div class="status"><span class="swatch orange"></span><b>Orange — Delayed</b><br>The next report is later than expected.</div>
+    <div class="status"><span class="swatch orange"></span><b>Flashing orange — Stale</b><br>No sufficiently recent report has been received; the dot remains at the last known position.</div>
+    <div class="status"><span class="swatch grey"></span><b>Grey — Earlier recorded position</b><br>Used where earlier entrant positions are shown during playback or trail display.</div>
+    <div class="status"><span class="swatch red"></span><b>Red — Selected entrant</b><br>The entrant card is open and that entrant is being followed.</div>
+
+    <h2>Entrant card and trail</h2>
+    <p>The entrant card shows Tour number, entrant name, current tracking status, latest speed, and reported GPS accuracy. Trail choices are <b>None</b>, <b>5 min</b>, <b>10 min</b>, and <b>All</b>. Closing the card clears the selected state.</p>
+
+    <h2>Centre map control</h2>
+    <p>Select <b>◎</b> to restore the appropriate map view: the full Tour or the selected entrant. Tracking does not use rally control locations.</p>
+
+    <h2>Event Replay</h2>
+    <p>Select <b>Event Replay</b> to leave Live Tracking and review the recorded positions stored in the Google Tracking sheet. Replay and Live Tracking are separate modes; replay positions are never mixed with current live positions.</p>
+    <p><b>For an earlier Tour, open the corresponding saved Tour project. In Event Replay, select the date of the recorded Tracking run from the available history.</b> Event Replay uses that project date to find the matching GPS history in Google.</p>
+    <div class="note warn"><b>Replay uses the stored GPS Time.</b> It does not use Received Time, Tour-number order, or invented movement between records.</div>
+
+    <h3>Choose what to replay</h3>
+    <ul>
+      <li><b>All entrants</b> replays every entrant that has matching recorded history.</li>
+      <li><b>One entrant</b> focuses on that entrant while retaining the normal entrant display behaviour.</li>
+      <li>The card shows the available recorded history range.</li>
+      <li>Select the required start time within that range.</li>
+    </ul>
+
+    <h3>Replay speed</h3>
+    <p>Choose <b>1×</b>, <b>2×</b>, <b>5×</b>, or <b>20×</b>. The default is <b>1×</b>. While Replay mode is open, the quick speed buttons beside the REPLAY indicator change speed immediately without restarting the replay.</p>
+
+    <h3>Replay controls</h3>
+    <ul>
+      <li><b>Start / Pause</b> starts the replay or freezes it at the exact current replay time.</li>
+      <li><b>Stop</b> freezes the current replay for inspection.</li>
+      <li><b>Reset</b> returns to the selected entrant, selected start time, and selected speed so the same selection can be replayed again.</li>
+      <li><b>Return to Live</b> cancels Replay mode, clears replay-only display, fetches the latest positions, and resumes normal Live Tracking.</li>
+    </ul>
+
+    <h3>How recorded positions move</h3>
+    <p>The page reads the available history when Replay is opened, then runs the replay locally in the browser. Each marker changes when its next stored GPS timestamp is reached.</p>
+    <ul>
+      <li>Records with the same or very close GPS timestamps appear to move together.</li>
+      <li>Different timestamps produce the corresponding staggered movement.</li>
+      <li>If a record is missing, the entrant remains at the last recorded position.</li>
+      <li>There is no bridging, interpolation, or invented movement between Sheet records.</li>
+      <li>Delayed uploads still appear at their correct historical GPS time.</li>
+    </ul>
+    <p>The winking <b>REPLAY</b> indicator shows that Replay is running. It remains visible but steady when replay is paused or stopped, and disappears on Return to Live.</p>
+
+    <h2>Tour Apps — sharing and setup</h2>
+    <p>The Dashboard's <b>Tour Apps</b> section provides links to the supporting apps. Select the required app and share its link by <b>Copy</b>, <b>Email</b> or <b>WhatsApp</b>.</p>
+    <div class="note warn"><b>New Tour, new link:</b> The organiser must share the tracking link for each new Tour. Already-installed apps can be reused: opening the new link updates the app with the current Tour configuration, without reinstalling it. Each entrant enters their <b>Tour number and surname</b> for the current Tour.</div>
+
+    <h3>Traccar — Android and iOS</h3>
+    <p>Traccar provides background location tracking while the device is being used for other tasks or the screen is off. Initial setup involves more steps.</p>
+    <ol>
+      <li>Download and install Traccar from the device's application store.</li>
+      <li>Set <b>Location: Highest</b>; <b>Distance: 500 metres</b>; <b>Interval: 30 seconds</b>; <b>Angle: Disabled / 0 degrees</b>; <b>Stationary heartbeat: 60 seconds</b>.</li>
+      <li>Open the current Tour link shared by the organiser to apply the event configuration.</li>
+      <li>Enter the <b>Tour number and surname</b> and turn <b>Continuous tracking</b> on.</li>
+    </ol>
+
+    <h3>Tracking PWA — simple mobile tracking</h3>
+    <p>The Tracking PWA is simpler to operate and does not require a separate app-store installation.</p>
+    <ol>
+      <li>Open the current Tour link and enter the <b>Tour number and surname</b>.</li>
+      <li>Select <b>Start Tracking</b>.</li>
+      <li>Keep the tracking page <b>open and active</b> and the mobile device <b>connected to the internet</b>. <b>Do not use flight mode.</b></li>
+      <li>Reduce screen brightness to conserve battery power.</li>
+    </ol>
+
+    <h3>Tracking Android App — background tracking</h3>
+    <p>Once installed on Android, this app can track while the phone is being used normally. Open the new Tour link to update its configuration, enter the <b>Tour number and surname</b>, then select <b>Start Tracking</b>.</p>
+
+    <h3>Organiser Tracking App — Android</h3>
+    <p>Allows the organiser to view and monitor entrant locations. Refer to its own Help document for detailed operation.</p>
+
+    <h3>Field Tool — Android</h3>
+    <p>Used to capture a Tour route and mark points of interest in the field. Refer to its own Help document.</p>
+
+    <h2>Mobile tracking and network connection</h2>
+    <p>Tracking depends on the app chosen and its network connection. When a device can submit reports, positions become available to Live Tracking. Background-capable apps may behave differently from the PWA during screen-off operation or temporary network loss.</p>
+    <div class="note"><b>Tracking PWA:</b> Keep the page open and active with an internet connection. Do not rely on flight mode for live tracking. A mapped route is optional: the Tracking page can display entrant positions without one.</div>
+
+    <h2>Normal event workflow</h2>
+    <ol>
+      <li>Upload the active Tracking event from the desktop Tracking card.</li>
+      <li>Confirm that only the required Tour tracking dates are enabled; <b>Tracking is not enabled on rest days</b>.</li>
+      <li>Share the current Tour-specific link for the selected tracking app with each entrant. An installed app can be reused for the new Tour.</li>
+      <li>Run Live Tracking during the event.</li>
+      <li>Check that the selected tracking app is reporting and that entrant locations appear in Live Tracking; follow that app's own instructions for any queued records.</li>
+      <li>After the event, select Event Replay and review all entrants or one entrant from the required start time.</li>
+      <li>Select Return to Live when the replay review is complete.</li>
+    </ol>
+
+  
+  </section>
+</main>
+</body>
+</html>

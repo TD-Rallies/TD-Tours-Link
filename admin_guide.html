@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="TD_simple.ico" type="image/x-icon">
+<title>Admin — Tour Setup &amp; Entries (Guide)</title>
+<style>
+/* TD Rally Guide Base (stable, GitHub/local consistent) */
+:root{
+  --td-blue:#0070C0;
+  --td-text:#111;
+  --td-muted:#444;
+}
+html,body{margin:0;padding:0;background:#fff;color:var(--td-text);}
+body{
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size:14px;
+  line-height:1.55;
+}
+main{
+  max-width: 980px;
+  margin: 36px auto;
+  padding: 0 24px 40px;
+}
+h1{
+  font-size:26px;
+  line-height:1.2;
+  margin: 0 0 14px;
+  color: var(--td-blue);
+  font-weight: 700;
+}
+h2{
+  font-size:18px;
+  line-height:1.25;
+  margin: 22px 0 10px;
+  color: var(--td-blue);
+  font-weight: 700;
+}
+h3{
+  font-size:14px;
+  line-height:1.25;
+  margin: 14px 0 6px;
+  color: var(--td-text);
+  font-weight: 600;
+}
+p{margin: 0 0 10px;}
+ul{margin: 0 0 10px 22px; padding:0;}
+li{margin: 0 0 6px;}
+.note{
+  color: var(--td-muted);
+  margin-top: 2px;
+}
+hr{
+  border:0;
+  border-top:1px solid #e5e7eb;
+  margin: 18px 0;
+}
+.blue-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #2d6cdf;
+  color: white;
+  border-radius: 5px;
+  font-weight: bold;
+  margin: 0 2px;
+  white-space: nowrap;
+  font-size: 0.8em;
+}
+.green-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #2e8b57;
+  color: white;
+  border-radius: 5px;
+  font-weight: bold;
+  margin: 0 2px;
+  white-space: nowrap;
+  font-size: 0.8em;
+}
+
+.grey-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #808080;
+  color: white;
+  border-radius: 5px;
+  font-weight: bold;
+  margin: 0 2px;
+  white-space: nowrap;
+  font-size: 0.8em;
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Admin — Tour Setup &amp; Entries</h1>
+
+<h2>Overview</h2>
+<p>The Admin page is the starting point for each Tour. It creates the Tour identity, defines the Tour days and dates, manages entrant details and provides the Google Administration tools used to collect entries and support Tracking.</p>
+
+
+
+<h3>Quick steps</h3>
+<ul>
+<li>Enter the Tour title.</li>
+<li>Select the number of Tour days and set the date for each day.</li>
+<li>Set the Tour Workspace so project files can be saved.</li>
+<li>Complete the one-time Google setup via the Administration card.</li>
+<li>Optionally complete the one-time Cloudflare via the Administration card.</li>
+<li>Upload the Tour entry configuration and share the entry form.</li>
+<li>Download submitted entries or enter entrants manually.</li>
+<li>Review the assigned Tour numbers.</li>
+<li>Save the Tour project.</li>
+</ul>
+
+<p>The page includes a Normal/Compact button. This changes the screen scale only.</p>
+
+<h2>Tour days</h2>
+<ul>
+<li>Select the number of Tour days, up to seven.</li>
+<li>Enter the date for each day.</li>
+<li>Dates can be non-consecutive where the Tour includes rest days or breaks.</li>
+<li>The Tour date list is also used by Tracking to determine which dates belong to the event.</li>
+</ul>
+
+<h2>Control panel</h2>
+<ul>
+<li><strong>Tour Title</strong> — enter the Tour name when creating a new project.</li>
+<li><span class="green-btn">ADD ROW</span> — adds an entrant row to the bottom of the table.</li>
+<li><span class="blue-btn">Save</span> — saves the current Tour project to the selected workspace.</li>
+<li><span class="blue-btn">Load</span> — loads a previously saved Tour project. Loading replaces the current project data.</li>
+<li><span class="blue-btn">Print</span> — prints the entrant list.</li>
+<li><span class="blue-btn">Administration</span> — opens the Administration card for entry and tracking setup.</li>
+<li><span class="green-btn">Tools</span> — provides workspace, Save As, Load and New Tour functions.</li>
+</ul>
+
+<h2>Save and Load</h2>
+<p>Admin manages the Tour project workspace. Once a workspace has been selected, each Tour is stored in its own folder.</p>
+
+<ul>
+<li><strong>Set Tour Workspace</strong> — choose the parent folder where Tour projects will be stored.</li>
+<li><strong>Save</strong> — saves the active Tour project.</li>
+<li><strong>Save As</strong> — creates a new Tour project with a new title. Existing map files are copied into the new Tour's <strong>Maps</strong> folder.</li>
+<li><strong>Load</strong> — opens a previously saved Tour project.</li>
+<li><strong>New Tour</strong> — clears the current Tour data and starts a new Tour project.</li>
+</ul>
+
+<p>Each save advances the project issue reference shown as <strong>rXXX</strong>. If an older saved issue is loaded, normal Save is protected so that a newer project file is not accidentally overwritten; use <strong>Save As</strong> when required.</p>
+
+<h2>The entrant table</h2>
+<p>The entrant table can be populated manually or from Google entry data.</p>
+
+<p>The Tour entrant details are:</p>
+<ul>
+<li>Driver first name and surname.</li>
+<li>Navigator first name and surname.</li>
+<li>Driver mobile number.</li>
+<li>Driver email address.</li>
+<li>Car make/model.</li>
+<li>Car year.</li>
+<li>Tour number.(non editable)</li>
+</ul>
+
+<p>Tour numbers are assigned by Admin according to the table order. The Google entry form excludes Tour numbering.</p>
+
+<h3>Entry row gear menu</h3>
+<ul>
+<li><strong>Insert</strong> — insert a new row above or below.</li>
+<li><strong>Copy row</strong> — copy entrant details.</li>
+<li><strong>Paste</strong> — paste copied details into an empty row.</li>
+<li><strong>Delete</strong> — remove a row after confirmation.</li>
+</ul>
+
+<p class="note">When rows are inserted or deleted, the displayed sequence is updated.</p>
+
+<h2>Google Administration</h2>
+<p>Select <span class="blue-btn">Administration</span> to open the Google interface. This is the gateway to automated entry collection and Tracking data.</p>
+
+<p>The initial Google connection is a one-time setup. Use the <strong>Code.gs guide</strong> in the Administration card and complete the process carefully. Once connected, the same Google arrangement can be used for later Tours.</p>
+
+<h3>Setup process</h3>
+<ul>
+<li>Open Administration and select <strong>Code.gs guide</strong>.</li>
+<li>Complete the Google Apps Script setup.</li>
+<li>Enter the organiser mobile number where requested.</li>
+<li>Paste the Google Web App URL into the setup field.</li>
+<li>Select <strong>Save &amp; test</strong>.</li>
+<li>The status should change to <strong>Connected</strong>.</li>
+</ul>
+
+<h2>Entry data</h2>
+<p>After the Tour has been created in Google, the entry form can be shared with prospective entrants.</p>
+
+<ul>
+<li><strong>Upload entry data</strong> creates or updates the Tour's Google entry structure.</li>
+<li>The entry form title defaults from the Tour title and can be edited before upload where required.</li>
+<li>Use the available link buttons to open or share the entry form.</li>
+<li><strong>View responses</strong> opens the raw Google form responses.</li>
+<li><strong>Open entry data</strong> opens the processed worksheet ready for download.</li>
+<li><strong>Download entry data</strong> transfers the processed entries into the Admin table.</li>
+</ul>
+
+<p>An entrant can submit more than one response. The processed Google worksheet uses the latest qualifying entry for that person.</p>
+
+<p class="note">It is good practice to review the Google entry worksheet before downloading it into Admin.</p>
+
+
+<h2>Traccar Connection (Optional)</h2>
+<p>The use of the Traccar app is optional but it requires a one time setup linking the tracking app to Google sheets via a 3rd part link - Cloudflare.</p>
+<ul>
+<li>Refer to the Cloudflare guide.</li>
+<li>Enter the Cloudflare URL into Traccar Connection and use <strong>Save &amp; test</strong></li>
+<li>Then close and re-open the Aministration card to confirm that the URL has been retained.</li>
+</ul>
+
+<p>Tracking configuration uses the Tour's explicit day/date list rather than a simple start-to-end date range. This allows a Tour to include rest days or non-consecutive event dates while retaining one Tour Tracking link.</p>
+
+<p>The Tracking page and supporting mobile app use the Tour identity and Tour numbers created in Admin.</p>
+
+<h2>Printing</h2>
+<p>Admin Print, the entrant list for the Tour.</p>
+
+<h2>Recovery</h2>
+<p>Normal recovery should be attempted by closing and reopening the page, checking the active Tour and reloading the last saved Tour project if necessary.</p>
+
+<p>Clearing browser storage or deleting Google project folders is an advanced recovery action and should only be used when normal recovery has failed and a clean restart is intended.</p>
+</main>
+</body>
+</html>

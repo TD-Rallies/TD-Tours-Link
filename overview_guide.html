@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="TD_simple.ico" type="image/x-icon">
+<title>TD Tours Overview</title>
+<style>
+/* TD Rally Guide Base (stable, GitHub/local consistent) */
+:root{
+  --td-blue:#0070C0;
+  --td-text:#111;
+  --td-muted:#444;
+}
+html,body{margin:0;padding:0;background:#fff;color:var(--td-text);}
+body{
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size:14px;
+  line-height:1.55;
+}
+main{
+  max-width: 980px;
+  margin: 36px auto;
+  padding: 0 24px 40px;
+}
+h1{
+  font-size:26px;
+  line-height:1.2;
+  margin: 0 0 14px;
+  color: var(--td-blue);
+  font-weight: 700;
+}
+h2{
+  font-size:18px;
+  line-height:1.25;
+  margin: 22px 0 10px;
+  color: var(--td-blue);
+  font-weight: 700;
+}
+h3{
+  font-size:14px;
+  line-height:1.25;
+  margin: 14px 0 6px;
+  color: var(--td-text);
+  font-weight: 600;
+}
+p{margin: 0 0 10px;}
+ul{margin: 0 0 10px 22px; padding:0;}
+li{margin: 0 0 6px;}
+.note{
+  color: var(--td-muted);
+  margin-top: 2px;
+}
+hr{
+  border:0;
+  border-top:1px solid #e5e7eb;
+  margin: 18px 0;
+}
+
+.blue-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #2d6cdf;
+  color: white;
+  border-radius: 5px;
+  font-weight: bold;
+  margin: 0 2px;
+  white-space: nowrap;
+  font-size: 0.8em;
+}
+.green-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #2e8b57;
+  color: white;
+  border-radius: 5px;
+  font-weight: bold;
+  margin: 0 2px;
+  white-space: nowrap;
+  font-size: 0.8em;
+}
+
+.grey-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #808080;
+  color: white;
+  border-radius: 5px;
+  font-weight: bold;
+  margin: 0 2px;
+  white-space: nowrap;
+  font-size: 0.8em;
+}
+</style>
+</head>
+<body>
+<main>
+<h1>TD Tours Overview</h1>
+
+<h2>Introduction</h2>
+<p>TD Tours is an integrated system for organising road touring events. It brings entrant administration, route mapping, roadbook schedules and optional live tracking together in one Tour project.</p>
+
+
+
+<p>The main Tour pages are:</p>
+<ul>
+<li><strong>Admin</strong> — set up the Tour, Tour days and entrant information.</li>
+<li><strong>Mapping</strong> — plan and save the route, waypoints and route notes.</li>
+<li><strong>Schedule</strong> — prepare the roadbook using mapped and manually added instructions, with an optional <strong>Tulip</strong> roadbook view.</li>
+<li><strong>Tracking</strong> — optionally monitor entrant progress and review recorded movement.</li>
+</ul>
+
+<p>All core pages share the same Tour project. The active Tour, its days, entrants, maps and Schedule remain aligned as you move between pages.</p>
+
+<p>Schedule can be used in the normal TURN-column format or switched to the optional <strong>Tulip</strong> format. Tulip mode replaces the visible TURN column with graphical route instructions and optional road-sign or service icons while keeping the underlying Schedule data together.</p>
+
+<h2>The basic workflow</h2>
+
+<h3><strong>1. Admin</strong></h3>
+<ul>
+<li>Enter the Tour title.</li>
+<li>Select the number of Tour days and enter the date for each day.</li>
+<li>Select <strong>Tools</strong>, then <strong>Set Tour Workspace</strong>, and choose the folder where Tour projects are to be stored.</li>
+<li>Select <strong>Administration</strong>, then <strong>Code.gs guide</strong>, aiding setting up Google, a once off procedure.</li>
+<li>Add entrants manually or use the Google entry system to collect them online.</li>
+<li>Tour numbers are assigned in Admin and remain the entrant identity used by the Tour package.</li>
+<li>Use <strong>Save</strong> regularly. <strong>Save As</strong> creates a new Tour project folder including any project maps.</li>
+</ul>
+
+<h3><strong>2. Mapping</strong></h3>
+<ul>
+<li>Open Mapping from the Dashboard and select the Tour day being prepared.</li>
+<li>Plot the route in driving order and add waypoints where instructions or route references are required.</li>
+<li>Add or edit waypoint notes while planning the route.</li>
+<li>Use the available map tools to refine waypoint positions and route shape.</li>
+<li>Save Tour map files directly in the Tour project's <strong>Maps</strong> folder.</li>
+<li>When the mapped route is ready, import it into Schedule.</li>
+</ul>
+
+<p>Mapping owns the physical route structure and mapped waypoint positions. If a mapped waypoint is moved, added or removed, changes are made in Mapping, saved, and then re-imported into Schedule.</p>
+
+<h3><strong>3. Schedule</strong></h3>
+<ul>
+<li>Import the mapped route for the active Tour day.</li>
+<li>Mapped rows are placed in route-distance order. Schedule-only instruction rows are retained and merged according to their entered distance.</li>
+<li>The mapped Start at <strong>0.00</strong> is the authoritative first route row.</li>
+<li>Use <strong>Add Row</strong> to add additional Schedule-only instructions where required.</li>
+<li>A blank distance remains blank until it is entered; unfinished rows remain at the end of the Schedule.</li>
+<li>Distances are shown in <strong>KM</strong> and automatically converted to <strong>MILES</strong>.</li>
+<li>The row checkbox in the first column can be used to hide a complete row from print.</li>
+<li>The <strong>TURN</strong> column can be used for common turn abbreviations and can be excluded from print when not required.</li>
+<li>Select <strong>Tulip</strong> when a graphical roadbook is required. The TURN column is hidden and a Tulip column is shown between MILES and INSTRUCTION.</li>
+<li>Click a Tulip cell to build or edit the route diagram for that row. Tulips can also be added to rows imported from Mapping.</li>
+<li>Print produces the current Tour-day roadbook in the active normal or Tulip format.</li>
+</ul>
+
+<h3><strong>4. Tracking</strong></h3>
+<ul>
+<li>Tracking is optional and does not affect the normal Admin, Mapping or Schedule workflow.</li>
+<li>The Tracking page provides the organiser with a live view of entrant positions when tracking data is being received.</li>
+<li>There is also an orginisers  mobile tracking app that can be used during the event
+<li>Recorded movement can also be reviewed later using replay functions.</li>
+<li>Tracking is based on the Tour's actual day/date list, so the same Tour link can remain valid across the event.</li>
+</ul>
+
+<h2>Google form entries</h2>
+<p>TD Tours can use Google Forms and Google Sheets to automate entrant data collection. The initial Google connection is set up from the Administration card in Admin.</p>
+
+<ul>
+<li>Complete the Google setup once using the Code.gs Set up guide.</li>
+<li>Enter the Google Web App URL in Administration and use <strong>Save &amp; test</strong> to confirm the connection.</li>
+<li>Upload the Tour entry configuration to create or update the online entry form.</li>
+<li>Share the entry link by the available sharing methods.</li>
+<li>When entries have been submitted, review the Google data and select <strong>Download entry data</strong> to populate Admin.</li>
+</ul>
+
+<p>The Google form does not assign Tour numbers. Tour numbers are assigned by Admin after the entrant data is downloaded.</p>
+
+<h2>Cloudflare (Traccar) link</h2>
+<p>The use of Traccar is optional but reqires a one time setup linking the tracking app to Google sheets so that entrants can be tracked via TD Tours as well as the mobile tracking app.
+<ul>
+<li>Refer to the Cloudflare guide.</li>
+<li>Enter the Cloudflare URL into Traccar Connection and use <strong>Save &amp; test</strong></li>
+</ul>
+
+
+<h2>The Dashboard</h2>
+<p>The Dashboard is the main navigation and summary page for the Tour package.</p>
+
+<ul>
+<li>Open <strong>Admin</strong>, <strong>Mapping</strong>, <strong>Schedule</strong> or <strong>Tracking</strong>.</li>
+<li>Review entrant/Admin information and mapped route-distance summaries.</li>
+<li>Open the individual help documents.</li>
+<li>Use the <strong>Tour Apps</strong> section to select and share supporting app links.</li>
+<li>Use <strong>Load prior Tour</strong> when an earlier saved Tour project needs to be opened.</li>
+</ul>
+
+<h2>Tour project storage</h2>
+<p>A Tour project uses one Tour workspace folder. The project file is stored at the Tour folder root and map files are stored directly in its <strong>Maps</strong> folder.</p>
+
+<p>There are no Route 1 or Route 2 subfolders in the Tour package. Mapping and Schedule both use the same day-based Tour structure.</p>
+
+<h2>Supporting apps</h2>
+<p>The Dashboard contains the <strong>Tour Apps</strong> section for distributing mobile tracking and field-operation app links. These apps are separate from the core desktop pages. Select the required app, then use <strong>Copy</strong>, <strong>Email</strong> or <strong>WhatsApp</strong> to share its link.</p>
+
+<p><strong>Important — every new Tour needs a new shared tracking link.</strong> An app that is already installed can be reused; opening the new Tour link updates its configuration for that Tour, without reinstalling it. Each entrant must enter their <strong>Tour number and surname</strong> for the current Tour. The organiser should share the new link before tracking begins.</p>
+
+<h3>Traccar — Android and iOS</h3>
+<p>Traccar supports background tracking while the phone screen is off or the phone is being used for other activities. Initial installation and setup are more involved than for the other tracking apps.</p>
+<ul>
+<li>Download and install Traccar from the device's application store.</li>
+<li>In Traccar, configure <strong>Location: Highest</strong>; <strong>Distance: 500 metres</strong>; <strong>Interval: 30 seconds</strong>; <strong>Angle: Disabled / 0 degrees</strong>; and <strong>Stationary heartbeat: 60 seconds</strong>.</li>
+<li>Open the current Tour link shared from Tour Apps to apply the Tour configuration.</li>
+<li>Enter the entrant's <strong>Tour number and surname</strong>, then switch <strong>Continuous tracking</strong> on.</li>
+</ul>
+
+<h3>Tracking PWA — simple mobile tracking</h3>
+<p>The Tracking PWA is easier to use and does not require installing a separate store app, but the tracking page must remain <strong>open and active</strong> during the journey.</p>
+<ul>
+<li>Open the current Tour tracking link, enter the <strong>Tour number and surname</strong>, then select <strong>Start Tracking</strong>.</li>
+<li>Keep the mobile device connected to the internet and leave the Tracking PWA open and active throughout the journey. Do not use flight mode.</li>
+<li>Reduce screen brightness to conserve battery power.</li>
+</ul>
+
+<h3>Tracking Android App — background tracking</h3>
+<p>Install the Android Tracking App to continue tracking while the phone is used normally.</p>
+<ul>
+<li>Open the current Tour link to update the installed app's Tour configuration.</li>
+<li>Enter the <strong>Tour number and surname</strong>, then select <strong>Start Tracking</strong>.</li>
+</ul>
+
+<h3>Organiser Tracking App — Android</h3>
+<p>Used by the organiser to view and monitor Tour entrant positions. Refer to the Organiser Tracking App's own Help for operating instructions.</p>
+
+<h3>Field Tool — Android</h3>
+<p>Used in the field to capture a Tour route and mark points of interest. Refer to the Field Tool's own Help for detailed guidance.</p>
+
+<p><strong>Note:</strong> A plotted or suggested route is not required for live entrant tracking. Entrant locations can be monitored without a mapped route.</p>
+
+<h2>Guide documents</h2>
+<ul>
+<li>Overview — this document.</li>
+<li>Admin Help.</li>
+<li>Mapping Help.</li>
+<li>Schedule Help.</li>
+<li>Tracking Help.</li>
+<li>Code.gs (Google) guide.</li>
+<li>Cloudflair guide.</li>
+
+</ul>
+
+<p>For detailed operating instructions, use the Help buttons on the Dashboard and the Help function provided on the relevant page.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="TD_simple.ico" type="image/x-icon">
+<title>Schedule — Tour Roadbook Guide</title>
+<style>
+/* TD Rally Guide Base (stable, GitHub/local consistent) */
+:root{
+  --td-blue:#0070C0;
+  --td-text:#111;
+  --td-muted:#444;
+}
+html,body{margin:0;padding:0;background:#fff;color:var(--td-text);}
+body{
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-size:14px;
+  line-height:1.55;
+}
+main{
+  max-width: 980px;
+  margin: 36px auto;
+  padding: 0 24px 40px;
+}
+h1{
+  font-size:26px;
+  line-height:1.2;
+  margin: 0 0 14px;
+  color: var(--td-blue);
+  font-weight: 700;
+}
+h2{
+  font-size:18px;
+  line-height:1.25;
+  margin: 22px 0 10px;
+  color: var(--td-blue);
+  font-weight: 700;
+}
+h3{
+  font-size:14px;
+  line-height:1.25;
+  margin: 14px 0 6px;
+  color: var(--td-text);
+  font-weight: 600;
+}
+p{margin: 0 0 10px;}
+ul{margin: 0 0 10px 22px; padding:0;}
+li{margin: 0 0 6px;}
+.note{
+  color: var(--td-muted);
+  margin-top: 2px;
+}
+hr{
+  border:0;
+  border-top:1px solid #e5e7eb;
+  margin: 18px 0;
+}
+.green-btn {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #2e8b57;
+  color: white;
+  border-radius: 5px;
+  font-weight: bold;
+  margin: 0 2px;
+  white-space: nowrap;
+  font-size: 0.8em;
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Schedule — Tour Roadbook Guide</h1>
+
+<h2>Overview</h2>
+<p>The Schedule page is used to prepare the Tour roadbook for each Tour day. It can be built manually, or populated from a route prepared in Mapping.</p>
+
+<p>The Tour Schedule is intentionally simple. It does not use rally speeds, timings, controls, speed groups or scoring. In the normal view the working columns are <strong>#</strong>, <strong>KM</strong>, <strong>MILES</strong>, <strong>INSTRUCTION</strong> and <strong>TURN</strong>. The optional <strong>Tulip</strong> view replaces the visible TURN column with a graphical Tulip column between MILES and INSTRUCTION.</p>
+
+<p>The page includes a Normal/Compact button. This changes the screen scale only.</p>
+
+<h2>Key steps</h2>
+<ul>
+<li>Select the required Tour day.</li>
+<li>Import a mapped route, or build the roadbook manually.</li>
+<li>Add or edit Schedule-only instruction rows.</li>
+<li>Enter distances in kilometres; miles are calculated automatically.</li>
+<li>Use the row checkbox to hide complete rows from print where required.</li>
+<li>Use the TURN column for optional turn abbreviations, or select <strong>Tulip</strong> for a graphical roadbook.</li>
+<li>Save the Tour project regularly.</li>
+<li>Print the current Tour-day roadbook when ready.</li>
+</ul>
+
+<h2>Rows</h2>
+<p>Select <span class="green-btn">ADD ROW</span> to add Schedule-only instruction rows.</p>
+
+<h3>Row types</h3>
+<ul>
+<li><strong>Instruction</strong> — one normal instruction row.</li>
+<li><strong>Instruction x 5</strong> — adds five instruction rows together.</li>
+</ul>
+
+<h2>Column 1 — row number, gear and print checkbox</h2>
+<p>The first column contains the row number and row gear menu. It also contains the row-level print checkbox.</p>
+
+<ul>
+<li>The row number shows the current Schedule sequence.</li>
+<li>The gear opens the row menu for insert/delete actions.</li>
+<li>The checkbox hides the <strong>entire row</strong> from Schedule print when selected.</li>
+<li>The print-hide state is retained when the Tour is saved and reopened.</li>
+</ul>
+
+<h2>KM</h2>
+<p>The KM column is the working distance column. Distances are displayed to two decimal places.</p>
+
+<ul>
+<li>A newly added row starts with a blank distance and an orange ring.</li>
+<li>The orange ring clears once a real distance has been entered or confirmed.</li>
+<li>A blank distance remains genuinely blank through page changes and save/reopen.</li>
+<li>A genuine <strong>0.00</strong> remains a valid distance and is not treated as blank.</li>
+<li>If a distance goes backwards compared with the previous positioned row, it is flagged as an error and should be corrected.</li>
+</ul>
+
+<h2>MILES</h2>
+<p>The MILES column is derived automatically from the KM value.</p>
+
+<p><strong>Miles = KM × 0.621371</strong></p>
+
+<ul>
+<li>Miles are displayed to two decimal places.</li>
+<li>The Miles value is not separately stored or edited.</li>
+<li>If KM is blank, Miles remains blank.</li>
+<li>If KM is 0.00, Miles displays 0.00.</li>
+</ul>
+
+<h2>Instruction</h2>
+<p>Use the Instruction column for the roadbook wording associated with each route point or manually added Schedule row.</p>
+
+<p>Mapped instruction text is imported from Mapping. Once the route has been imported, then Schedule is the working place for roadbook wording, edits made will not be overwriiten by a later import.</p>
+
+<h2>TURN</h2>
+<p>The TURN column provides the standard abbreviations:</p>
+<ul>
+<li>TL — Turn Left.</li>
+<li>TR — Turn Right.</li>
+<li>CSO — Continue Straight On.</li>
+<li>B/L — Bear Left.</li>
+<li>B/R — Bear Right.</li>
+</ul>
+
+<p>Click the TURN header to include or exclude the complete TURN column from print. When the TURN header is shown in red, that column will not be printed.</p>
+
+<h2>Tulip roadbook option</h2>
+<p>Select <strong>Tulip</strong> at the top of Schedule when a graphical roadbook is required.</p>
+
+<ul>
+<li>Tulip mode hides the visible TURN column and adds a <strong>TULIP</strong> column between MILES and INSTRUCTION.</li>
+<li>The Schedule rows become taller so the route diagrams and icons remain legible.</li>
+<li>Select Tulip again to return to the normal compact TURN view. Existing TURN information is retained.</li>
+<li>Tulip mode is remembered when the page is reopened.</li>
+</ul>
+
+<h3>Adding or editing a Tulip</h3>
+<ul>
+<li>Click the Tulip cell for the required Schedule row. This is available on both Schedule-only rows and rows imported from Mapping.</li>
+<li>Select the required route diagram in the floating Tulip window.</li>
+<li>For a roundabout, select <strong>Configure Roundabout</strong>, choose the number of branches and the required exit, then select <strong>Done</strong>.</li>
+<li>Select <strong>Icons</strong> to add road-sign or service icons. Choose the required quadrant directly on the preview or with the TL/TR/BL/BR buttons.</li>
+<li>Select <strong>Apply</strong> in the Icons view to return the icon changes to the Tulip preview.</li>
+<li>Select the main <strong>Apply</strong> button to apply the completed Tulip to the Schedule row.</li>
+<li><strong>Remove Tulip</strong> clears the Tulip from that row while keeping the editor open so another diagram can be selected.</li>
+</ul>
+
+<p>The Tulip window can be dragged by its header, allowing the underlying Schedule row to remain visible while the diagram is being prepared.</p>
+
+<h3>Tulips on Mapping-owned rows</h3>
+<p>A Tulip is Schedule presentation data. It can therefore be added to a Mapping-owned row without changing Mapping ownership of the waypoint position, route sequence or mapped distance.</p>
+
+<h2>Using Mapping with Schedule</h2>
+<p>Mapping and Schedule use the same Tour Workspace. Tour map files are stored directly in the active Tour project's <strong>Maps</strong> folder.</p>
+
+<h3>Importing a mapped route</h3>
+<ul>
+<li>Select the correct Tour day in Schedule.</li>
+<li>Select <strong>Load</strong>, then <strong>Import Mapped Route</strong>.</li>
+<li>The file picker opens in the Tour <strong>Maps</strong> folder.</li>
+<li>Select the required Tour map file.</li>
+</ul>
+
+<p>Schedule imports mapped waypoints, their instruction notes and mapped distances. Mapping breadcrumbs are not imported because they are route-shaping points rather than roadbook rows.</p>
+
+<h3>Mapping-owned rows</h3>
+<p>Rows imported from Mapping remain Mapping-owned for their physical route identity and mapped distance.</p>
+
+<ul>
+<li>The mapped distance is locked in Schedule.</li>
+<li>A Mapping-owned row cannot be deleted in Schedule.</li>
+<li>To move, add or remove a mapped waypoint, return to Mapping, make the change, save the map and re-import it.</li>
+</ul>
+
+<h3>Schedule-owned rows</h3>
+<p>Additional manual instruction rows may be added directly in Schedule.</p>
+
+<ul>
+<li>Schedule-only rows remain editable in Schedule.</li>
+<li>They are retained when a mapped route is imported again.</li>
+<li>Rows with real distances are merged into the final sequence by distance.</li>
+<li>Rows with blank distances remain at the end in their existing order.</li>
+</ul>
+
+<h3>Mapped Start</h3>
+<p>The mapped Start at <strong>0.00 km</strong> is the authoritative first route row after Mapping import. A duplicate Schedule Start is not retained.</p>
+
+<h3>Re-importing a revised map</h3>
+<p>When a revised map is imported:</p>
+<ul>
+<li>new mapped rows replace the previous mapped rows;</li>
+<li>existing Schedule-only instruction rows are retained;</li>
+<li>the combined roadbook is reordered by distance;</li>
+<li>blank-distance Schedule rows remain at the end.</li>
+</ul>
+
+<h2>Deleting rows</h2>
+<ul>
+<li>A Schedule-owned instruction row can be deleted in Schedule.</li>
+<li>A Mapping-owned row cannot be deleted in Schedule.</li>
+<li>To remove a mapped waypoint, delete it in Mapping, save the revised map and re-import.</li>
+</ul>
+
+<h2>Day selection</h2>
+<p>Use the Day selector at the top of the page to choose which Tour day is being viewed and edited.</p>
+
+<ul>
+<li>Selecting another day loads that day's Schedule data.</li>
+<li>Blank unfinished distances remain blank when changing days.</li>
+<li>Each day has its own mapped route reference and Schedule rows.</li>
+</ul>
+
+<h2>Save and Load</h2>
+<p>Save and Load use the common Tour project storage.</p>
+
+<ul>
+<li><strong>Save</strong> writes the current Tour project to the active Tour folder.</li>
+<li><strong>Load Tour</strong> opens a previously saved Tour project.</li>
+<li><strong>Import Mapped Route</strong> imports a saved map from the Tour's Maps folder.</li>
+<li>Loading a Tour replaces the currently active Tour data.</li>
+</ul>
+
+<h2>Print</h2>
+<p>Select <strong>Print</strong> to print the current Tour-day roadbook.</p>
+
+<ul>
+<li>KM and MILES are printed as separate distance columns.</li>
+<li>Rows whose first-column checkbox is selected are omitted completely.</li>
+<li>In normal view, the TURN column is included unless TURN has been switched off at the column header.</li>
+<li>In Tulip view, Tulip diagrams are printed and the TURN column is not shown.</li>
+<li>Instruction text is left aligned for roadbook readability.</li>
+</ul>
+
+<h2>Practical workflow</h2>
+<ol>
+<li>Prepare the route in Mapping.</li>
+<li>Save the map into the Tour's Maps folder.</li>
+<li>Open Schedule for the same Tour day.</li>
+<li>Import the mapped route.</li>
+<li>Add any additional Schedule-only instruction rows.</li>
+<li>Enter their KM distances where known, distance of mapped rows can only be changed in mapping</li>
+<li>Edit the roadbook instruction wording.</li>
+<li>Check KM/Miles and TURN information, or select Tulip and add graphical instructions where required.</li>
+<li>Hide any rows that should not appear in print.</li>
+<li>Save the Tour and print the roadbook.</li>
+</ol>
+
+<p class="note">Mapping remains the source for physical waypoint position and mapped distance. Schedule remains the working source for the printed roadbook and Schedule-only instruction rows.</p>
+</main>
+</body>
+</html>
